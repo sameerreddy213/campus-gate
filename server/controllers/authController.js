@@ -47,7 +47,7 @@ const sendTokenResponse = async (user, statusCode, res) => {
     const token = jwt.sign(
         { id: user._id, role: user.role, collegeId: user.collegeId },
         process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRE }
+        { expiresIn: process.env.JWT_EXPIRE || '30d' }
     );
 
     const options = {
@@ -127,8 +127,8 @@ exports.sendOtp = asyncHandler(async (req, res, next) => {
         return next(new ErrorResponse('Phone number not registered with any student', 404));
     }
 
-    // Generate 6 digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate 6 digit OTP (cryptographically secure)
+    const otp = crypto.randomInt(100000, 1000000).toString();
 
     // Save OTP to DB
     await OtpLog.create({
@@ -138,7 +138,9 @@ exports.sendOtp = asyncHandler(async (req, res, next) => {
     });
 
     // In production, send SMS here
-    console.log(`DEV MODE: OTP for ${phone} is ${otp}`);
+    if (process.env.NODE_ENV !== 'production') {
+        console.log(`DEV MODE: OTP for ${phone} is ${otp}`);
+    }
 
     res.status(200).json({
         success: true,
@@ -158,18 +160,25 @@ exports.verifyOtp = asyncHandler(async (req, res, next) => {
         return next(new ErrorResponse('Please provide phone and OTP', 400));
     }
 
-    // Bypass for now as requested
-    console.log(`Bypassing OTP check for ${phone} with ${otp}`);
+    // Verify OTP against the latest unverified, unexpired record for this phone
+    const otpRecord = await OtpLog.findOne({
+        phone,
+        verified: false,
+        expiresAt: { $gt: new Date() }
+    }).sort({ createdAt: -1 });
 
-    // Strategy: Check if a User with role 'parent' and this phone exists.
+    if (!otpRecord || otpRecord.otp !== otp) {
+        return next(new ErrorResponse('Invalid or expired OTP', 401));
+    }
+
+    // Mark OTP as used so it cannot be replayed
+    otpRecord.verified = true;
+    await otpRecord.save();
+
+    // Check if a User with role 'parent' and this phone exists.
     let user = await User.findOne({ phone, role: 'parent' });
 
-    // Check if a parent user already exists with this phone but different email or role?
-    let existingParentUser = await User.findOne({ phone, role: 'parent' });
-
-    if (existingParentUser) {
-        user = existingParentUser;
-    } else {
+    if (!user) {
         // Fetch student to get parent details
         const student = await Student.findOne({ parentPhone: phone });
         if (!student) {
@@ -239,18 +248,6 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     if (name) user.name = name;
     if (phone) user.phone = phone;
 
-    // If student, also update Student model
-    if (user.role === 'student') {
-        const student = await Student.findOne({ userId: user._id });
-        if (student) {
-            if (phone) student.parentPhone = phone; // Assuming shared phone or just updating user phone?
-            // Actually, student phone is usually user phone. Parent phone is separate.
-            // Let's stick to updating User model for now.
-            // If the user wants to update parent details, that's different.
-            // The prompt said "student can able to edit their name".
-        }
-    }
-
     await user.save();
 
     res.status(200).json({
@@ -258,10 +255,3 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
         data: user
     });
 });
-
-// Export all functions
-// exports.updatePassword was already defined but not exported if using module.exports = {...} pattern at bottom,
-// OR it was defined as exports.updatePassword = ... which is correct.
-// The previous view didn't show updatePassword definition. Let me check if it exists.
-// Ah, I need to see where updatePassword is defined.
-// If it's not in the file, that's the problem.

@@ -21,9 +21,15 @@ router.post('/login', [
     check('password', 'Password is required').exists(),
     validate
 ], login);
-// router.post('/parent/send-otp', otpValidator, sendOtp); // otpValidator checks for otp presence, but send-otp only needs phone
-router.post('/parent/send-otp', sendOtp);
-router.post('/parent/verify-otp', verifyOtp);
+router.post('/parent/send-otp', [
+    check('phone', 'Phone number is required').not().isEmpty(),
+    validate
+], sendOtp);
+router.post('/parent/verify-otp', [
+    check('phone', 'Phone number is required').not().isEmpty(),
+    check('otp', 'OTP is required').isLength({ min: 6, max: 6 }),
+    validate
+], verifyOtp);
 router.put('/updatepassword', protect, updatePassword);
 router.put('/updatedetails', protect, updateDetails);
 router.get('/me', protect, getMe);

@@ -1,11 +1,10 @@
 const app = require('../server/app');
 const connectDB = require('../server/config/db');
-const dotenv = require('dotenv');
 
-// Load env vars
-dotenv.config({ path: '../server/.env' });
+// Env vars come from the Vercel dashboard in deployment
+// (server/app.js already calls dotenv.config() for local use)
 
-// Connect to database
+// Connect to database (mongoose buffers queries until connected)
 connectDB();
 
 module.exports = app;

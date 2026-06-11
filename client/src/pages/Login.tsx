@@ -31,24 +31,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login({ email, password });
-      // Navigation is handled by AuthContext state change? 
-      // No, AuthContext sets state, we need to redirect based on role.
-      // But we don't know role yet until we get user back.
-      // Actually AuthContext sets user. We can use useEffect or just check user immediately if login returns it?
-      // Our login function in AuthContext is void. 
-      // But we can redirect here.
-
-      // Let's rely on the user state updating or just redirect simply.
-      // Ideally redirect based on role.
-      // Let's fetch the user role from the payload in AuthContext or just wait for effect?
-      // Better: force a redirect after login success.
-
-      // Since login awaits, we can assume success.
-      // We need to know the role to redirect correctly.
-      // Let's modify login to return user or just fetch me.
-      const res = await apiClient.get('/auth/me');
-      const user = res.data.data;
+      const user = await login({ email, password });
 
       const rolePaths: Record<string, string> = {
         "dev-admin": "/dev-admin",
@@ -199,10 +182,6 @@ export default function LoginPage() {
           </TabsContent>
         </Tabs>
 
-        {/* Dev Hint */}
-        <div className="text-center text-xs text-muted-foreground p-2 border border-dashed rounded bg-muted/50">
-          <p><strong>Dev Admin:</strong> admin@campusgate.com / password123</p>
-        </div>
       </div>
     </div>
   );

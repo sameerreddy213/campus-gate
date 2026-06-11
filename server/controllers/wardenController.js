@@ -1,6 +1,6 @@
 const OutingRequest = require('../models/OutingRequest');
 const Student = require('../models/Student');
-const { createNotification } = require('./notificationController');
+const { createNotification, notifyParent } = require('./notificationController');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
 
@@ -183,7 +183,7 @@ exports.markStudentOut = asyncHandler(async (req, res, next) => {
 
     // Check College Config
     const college = await require('../models/College').findById(req.user.collegeId);
-    if (college.config.enableGateSecurity) {
+    if (college?.config?.enableGateSecurity) {
         return next(new ErrorResponse('Gate Security is enabled. Only Watchman can mark students out.', 403));
     }
 
@@ -192,12 +192,10 @@ exports.markStudentOut = asyncHandler(async (req, res, next) => {
     await request.save();
 
     // Notify Student & Parent
-    const student = await Student.findById(request.studentId);
+    const student = await Student.findById(request.studentId).populate('userId', 'name');
     if (student) {
-        await createNotification(student.userId, "You have been marked OUT by Warden", "warning", request._id);
-        if (student.parent) {
-            await createNotification(student.parent, `${student.name} is now OUT of campus`, "warning", request._id);
-        }
+        await createNotification(student.userId._id, "You have been marked OUT by Warden", "warning", request._id);
+        await notifyParent(student, `${student.userId.name} is now OUT of campus`, "warning", request._id);
     }
 
     res.status(200).json({
@@ -226,7 +224,7 @@ exports.markStudentReturned = asyncHandler(async (req, res, next) => {
 
     // Check College Config
     const college = await require('../models/College').findById(req.user.collegeId);
-    if (college.config.enableGateSecurity) {
+    if (college?.config?.enableGateSecurity) {
         return next(new ErrorResponse('Gate Security is enabled. Only Watchman can mark students returned.', 403));
     }
 
@@ -235,12 +233,10 @@ exports.markStudentReturned = asyncHandler(async (req, res, next) => {
     await request.save();
 
     // Notify Student & Parent
-    const student = await Student.findById(request.studentId);
+    const student = await Student.findById(request.studentId).populate('userId', 'name');
     if (student) {
-        await createNotification(student.userId, "You have been marked RETURNED by Warden", "success", request._id);
-        if (student.parent) {
-            await createNotification(student.parent, `${student.name} has RETURNED to campus`, "success", request._id);
-        }
+        await createNotification(student.userId._id, "You have been marked RETURNED by Warden", "success", request._id);
+        await notifyParent(student, `${student.userId.name} has RETURNED to campus`, "success", request._id);
     }
 
     res.status(200).json({
@@ -285,6 +281,6 @@ exports.getSettings = asyncHandler(async (req, res, next) => {
 
     res.status(200).json({
         success: true,
-        data: college.config
+        data: college?.config || {}
     });
 });

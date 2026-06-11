@@ -27,12 +27,16 @@ const errorHandler = (err, req, res, next) => {
     // Or a 500
     const statusCode = error.statusCode || 500;
 
+    // Never leak internal error details (driver messages, paths) to clients in production
+    let message = error.message || 'Server Error';
+    if (statusCode >= 500 && process.env.NODE_ENV === 'production') {
+        message = 'Server Error';
+    }
+
     res.status(statusCode).json({
         success: false,
-        message: error.message || 'Server Error',
-        error: error.message || 'Server Error',
-        // In dev or if specifically debugging logic needed
-        path: req.originalUrl
+        message,
+        error: message
     });
 };
 

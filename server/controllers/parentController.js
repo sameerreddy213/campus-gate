@@ -91,14 +91,11 @@ exports.updateRequestStatus = asyncHandler(async (req, res, next) => {
 
     // Notify Warden if Approved
     if (status === 'parent-approved') {
-        // Need to find warden ID. Populate didn't fetch warden details, but studentId has it?
-        // request.studentId is populated, but we need to check if wardenId is available.
-        // The student model has wardenId.
-        const student = await Student.findById(request.studentId._id);
+        const student = await Student.findById(request.studentId._id).populate('userId', 'name');
         if (student && student.wardenId) {
             await createNotification(
                 student.wardenId,
-                `New pending request from ${student.userId.name} (Parent Approved)`,
+                `New pending request from ${student.userId?.name || 'a student'} (Parent Approved)`,
                 'info',
                 request._id
             );

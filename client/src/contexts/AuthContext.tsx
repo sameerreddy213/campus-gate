@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 interface AuthContextType {
   user: User | null;
-  login: (data: any) => Promise<void>;
+  login: (data: any) => Promise<User>;
   verifyOtp: (phone: string, otp: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -14,7 +14,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  login: async () => { },
+  login: async () => { throw new Error("AuthProvider not mounted"); },
   verifyOtp: async () => { },
   logout: () => { },
   isAuthenticated: false,
@@ -55,14 +55,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (data: any) => {
     try {
-      // Differentiate between parent OTP login and standard login if needed
-      // For now assuming standard login for all roles except potentially parent flow which we can handle separately or unify
       const res = await api.post('/auth/login', data);
       const { token, data: userData } = res.data;
 
       localStorage.setItem('token', token);
       setUser(userData);
       toast.success('Logged in successfully');
+      return userData as User;
     } catch (error: any) {
       const message = error.response?.data?.message || 'Login failed';
       toast.error(message);

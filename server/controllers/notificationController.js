@@ -23,7 +23,10 @@ exports.getMyNotifications = async (req, res) => {
 // Mark a single notification as read
 exports.markAsRead = async (req, res) => {
     try {
-        await Notification.findByIdAndUpdate(req.params.id, { read: true });
+        await Notification.findOneAndUpdate(
+            { _id: req.params.id, recipient: req.user.id },
+            { read: true }
+        );
         res.status(200).json({ success: true, message: "Marked as read" });
     } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
@@ -51,5 +54,20 @@ exports.createNotification = async (recipientId, message, type = 'info', related
         });
     } catch (error) {
         console.error("Failed to create notification:", error);
+    }
+};
+
+// Notify the parent User linked to a student (internal use).
+// Parents are linked to students by phone number, not by a direct reference.
+exports.notifyParent = async (student, message, type = 'info', relatedId = null) => {
+    try {
+        if (!student || !student.parentPhone) return;
+        const User = require('../models/User');
+        const parentUser = await User.findOne({ phone: student.parentPhone, role: 'parent' });
+        if (parentUser) {
+            await exports.createNotification(parentUser._id, message, type, relatedId);
+        }
+    } catch (error) {
+        console.error("Failed to notify parent:", error);
     }
 };

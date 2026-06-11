@@ -104,7 +104,7 @@ function SidebarNav({ items, collapsed, onItemClick }: { items: NavItem[]; colla
 }
 
 export function DashboardLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -139,9 +139,24 @@ export function DashboardLayout() {
     }
   };
 
+  // Redirect to login only once the auth check has finished (otherwise a hard
+  // refresh with a valid token bounces the user to /login before /auth/me resolves)
   useEffect(() => {
+    if (isLoading) return;
     if (!user) {
       navigate("/login");
+      return;
+    }
+
+    // Role guard: keep users inside their own section
+    const section = location.pathname.split("/")[1];
+    if (section in navConfig && section !== user.role) {
+      navigate(`/${user.role}`, { replace: true });
+    }
+  }, [user, isLoading, navigate, location.pathname]);
+
+  useEffect(() => {
+    if (!user) {
       return;
     }
 
@@ -166,9 +181,9 @@ export function DashboardLayout() {
     return () => clearInterval(interval);
   }, [user, navigate]);
 
-  if (!user) return null;
+  if (isLoading || !user) return null;
 
-  let navItems = navConfig[user.role];
+  let navItems = navConfig[user.role] || [];
 
   // Filter out Watchman from College Admin if disabled
   if (user.role === "college-admin" && !enableGateSecurity) {

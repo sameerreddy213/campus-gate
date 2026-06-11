@@ -8,7 +8,8 @@ const { ErrorResponse } = require('../middleware/errorMiddleware');
 // @route   POST /api/dev-admin/colleges
 // @access  Private (Dev Admin)
 exports.createCollege = asyncHandler(async (req, res, next) => {
-    const college = await College.create(req.body);
+    const { name, code, city } = req.body;
+    const college = await College.create({ name, code, city });
 
     res.status(201).json({
         success: true,
@@ -67,9 +68,12 @@ exports.createCollegeAdmin = asyncHandler(async (req, res, next) => {
         role: 'college-admin'
     });
 
+    const userData = user.toObject();
+    delete userData.password;
+
     res.status(201).json({
         success: true,
-        data: user
+        data: userData
     });
 });
 

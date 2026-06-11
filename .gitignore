@@ -1,1 +1,18 @@
 node_modules
+
+# Environment files (never commit secrets)
+.env
+.env.*
+!.env.example
+server/.env
+client/.env
+
+# Build output
+client/dist
+dist
+
+# Uploads / temp
+uploads/
+
+# Vercel
+.vercel

@@ -17,8 +17,11 @@ const {
 const { protect, authorize } = require('../middleware/authMiddleware');
 const { tenant } = require('../middleware/tenantMiddleware');
 
-// Configure Multer for CSV upload
-const upload = multer({ dest: 'uploads/' });
+// Configure Multer for CSV upload (in-memory: serverless filesystems are read-only)
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 2 * 1024 * 1024 } // 2MB
+});
 
 const router = express.Router();
 

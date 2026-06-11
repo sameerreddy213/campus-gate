@@ -1,6 +1,6 @@
 const Student = require('../models/Student');
 const OutingRequest = require('../models/OutingRequest');
-const { createNotification } = require('./notificationController');
+const { createNotification, notifyParent } = require('./notificationController');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
 
@@ -82,20 +82,18 @@ exports.raiseRequest = asyncHandler(async (req, res, next) => {
     });
 
     // Notify Parent
-    if (student.parent) {
-        await createNotification(
-            student.parent,
-            `New outing request from ${student.name}: ${purpose}`,
-            'info',
-            request._id
-        );
-    }
+    await notifyParent(
+        student,
+        `New outing request from ${req.user.name}: ${purpose}`,
+        'info',
+        request._id
+    );
 
     // Notify Warden if Auto-Forwarded (e.g. Mess/Exam)
     if (initialStatus === 'pending-warden' && student.wardenId) {
         await createNotification(
             student.wardenId,
-            `New request from ${student.name} (Auto-Approved by Parent rule)`,
+            `New request from ${req.user.name} (Auto-Approved by Parent rule)`,
             'info',
             request._id
         );
@@ -135,20 +133,18 @@ exports.cancelRequest = asyncHandler(async (req, res, next) => {
     await request.save();
 
     // Notify Parent
-    if (student.parent) {
-        await createNotification(
-            student.parent,
-            `${student.name} has CANCELLED their outing request to ${request.destination}`,
-            'info',
-            request._id
-        );
-    }
+    await notifyParent(
+        student,
+        `${req.user.name} has CANCELLED their outing request to ${request.destination}`,
+        'info',
+        request._id
+    );
 
     // Notify Warden if they had already approved it or if it was pending them
     if (['approved', 'pending-warden'].includes(previousStatus) && student.wardenId) {
         await createNotification(
             student.wardenId,
-            `${student.name} has CANCELLED their outing request`,
+            `${req.user.name} has CANCELLED their outing request`,
             'info',
             request._id
         );

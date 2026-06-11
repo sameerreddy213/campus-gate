@@ -1,5 +1,4 @@
-const fs = require('fs');
-const path = require('path');
+const { Readable } = require('stream');
 const csv = require('csv-parser');
 const User = require('../models/User');
 const Student = require('../models/Student');
@@ -117,9 +116,12 @@ exports.addWarden = asyncHandler(async (req, res, next) => {
         collegeId: req.collegeId
     });
 
+    const wardenData = warden.toObject();
+    delete wardenData.password;
+
     res.status(201).json({
         success: true,
-        data: warden
+        data: wardenData
     });
 });
 
@@ -185,79 +187,76 @@ exports.bulkUploadStudents = asyncHandler(async (req, res, next) => {
         return next(new ErrorResponse('Please upload a CSV file', 400));
     }
 
-    const results = [];
-    const filePath = req.file.path;
+    // Parse the uploaded CSV from memory (serverless filesystems are read-only)
+    const results = await new Promise((resolve, reject) => {
+        const rows = [];
+        Readable.from(req.file.buffer)
+            .pipe(csv())
+            .on('data', (data) => rows.push(data))
+            .on('end', () => resolve(rows))
+            .on('error', reject);
+    });
 
-    fs.createReadStream(filePath)
-        .pipe(csv())
-        .on('data', (data) => results.push(data))
-        .on('end', async () => {
-            try {
-                // Process each row
-                // Validate structure: name, email, phone, rollNumber, department, year, parentName, parentPhone
-                const successful = [];
-                const failed = [];
+    // Process each row
+    // Expected structure: name, email, phone, rollNumber, department, year, parentName, parentPhone
+    const successful = [];
+    const failed = [];
 
-                for (const row of results) {
-                    try {
-                        // Basic validation
-                        if (!row.email || !row.rollNumber) {
-                            failed.push({ row, error: 'Missing email or rollNumber' });
-                            continue;
-                        }
-
-                        // Check if user exists
-                        const existingUser = await User.findOne({ email: row.email });
-                        if (existingUser) {
-                            failed.push({ row, error: 'User already exists' });
-                            continue;
-                        }
-
-                        const user = await User.create({
-                            name: row.name,
-                            email: row.email,
-                            phone: row.phone,
-                            password: row.rollNumber, // Default password
-                            role: 'student',
-                            collegeId: req.collegeId
-                        });
-
-                        const student = await Student.create({
-                            userId: user._id,
-                            rollNumber: row.rollNumber,
-                            department: row.department,
-                            year: row.year,
-                            collegeId: req.collegeId,
-                            parentName: row.parentName,
-                            parentPhone: row.parentPhone,
-                            parentEmail: row.parentEmail
-                        });
-
-                        successful.push(student);
-                    } catch (err) {
-                        failed.push({ row, error: err.message });
-                    }
-                }
-
-                // Clean up file
-                fs.unlinkSync(filePath);
-
-                res.status(200).json({
-                    success: true,
-                    data: {
-                        total: results.length,
-                        successful: successful.length,
-                        failed: failed.length,
-                        failedRows: failed
-                    }
-                });
-
-            } catch (err) {
-                // Clean up on error
-                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-                return next(new ErrorResponse('Error processing CSV', 500));
+    for (const row of results) {
+        try {
+            // Basic validation
+            if (!row.email || !row.rollNumber) {
+                failed.push({ row, error: 'Missing email or rollNumber' });
+                continue;
             }
-        });
+
+            // Check if user exists
+            const existingUser = await User.findOne({ email: row.email });
+            if (existingUser) {
+                failed.push({ row, error: 'User already exists' });
+                continue;
+            }
+
+            const user = await User.create({
+                name: row.name,
+                email: row.email,
+                phone: row.phone,
+                password: row.rollNumber, // Default password
+                role: 'student',
+                collegeId: req.collegeId
+            });
+
+            try {
+                const student = await Student.create({
+                    userId: user._id,
+                    rollNumber: row.rollNumber,
+                    department: row.department,
+                    year: row.year,
+                    collegeId: req.collegeId,
+                    parentName: row.parentName,
+                    parentPhone: row.parentPhone,
+                    parentEmail: row.parentEmail
+                });
+                successful.push(student);
+            } catch (err) {
+                // Roll back the user account so the row can be re-imported after fixing
+                await User.findByIdAndDelete(user._id);
+                throw err;
+            }
+        } catch (err) {
+            failed.push({ row, error: err.message });
+        }
+    }
+
+    res.status(200).json({
+        success: true,
+        data: {
+            total: results.length,
+            successful: successful.length,
+            failed: failed.length,
+            failedRows: failed
+        }
+    });
 });
 
 // @desc    Get Students
@@ -289,6 +288,10 @@ exports.getStudents = asyncHandler(async (req, res, next) => {
 // @access  Private (College Admin)
 exports.assignStudentsToWarden = asyncHandler(async (req, res, next) => {
     const { wardenId, studentIds } = req.body;
+
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+        return next(new ErrorResponse('Please provide a non-empty array of student IDs', 400));
+    }
 
     const warden = await User.findById(wardenId);
     if (!warden || warden.role !== 'warden' || warden.collegeId.toString() !== req.collegeId.toString()) {
@@ -397,8 +400,6 @@ exports.getReports = asyncHandler(async (req, res, next) => {
 exports.addWatchman = asyncHandler(async (req, res, next) => {
     const { name, email, phone, password } = req.body;
 
-    console.log(`Creating Watchman: ${name}, ${email}, ${phone}`);
-
     const watchman = await User.create({
         name,
         email,
@@ -408,9 +409,12 @@ exports.addWatchman = asyncHandler(async (req, res, next) => {
         collegeId: req.collegeId
     });
 
+    const watchmanData = watchman.toObject();
+    delete watchmanData.password;
+
     res.status(201).json({
         success: true,
-        data: watchman
+        data: watchmanData
     });
 });
 
@@ -450,6 +454,10 @@ exports.deleteWatchman = asyncHandler(async (req, res, next) => {
 exports.getSettings = asyncHandler(async (req, res, next) => {
     const college = await require('../models/College').findById(req.collegeId);
 
+    if (!college) {
+        return next(new ErrorResponse('College not found', 404));
+    }
+
     res.status(200).json({
         success: true,
         data: college.config
@@ -463,6 +471,10 @@ exports.updateSettings = asyncHandler(async (req, res, next) => {
     const { enableGateSecurity } = req.body;
 
     const college = await require('../models/College').findById(req.collegeId);
+
+    if (!college) {
+        return next(new ErrorResponse('College not found', 404));
+    }
 
     if (enableGateSecurity !== undefined) {
         college.config.enableGateSecurity = enableGateSecurity;

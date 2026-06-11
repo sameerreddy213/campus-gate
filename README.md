@@ -156,16 +156,14 @@ NODE_ENV=development
 ### 4. 🛑 IMPORTANT: First-Time Setup (Seeding)
 **You must do this before you can log in!**
 
-The database starts empty. To create the initial **Administrator** account:
+The database starts empty. To create the initial **Administrator** account, run the seed script from the `server` directory:
 
-1.  Make sure the server is running (`npm run dev`).
-2.  Open your browser and visit:  
-    [http://localhost:5000/api/system/seed](http://localhost:5000/api/system/seed)
-3.  You will see a message: `Dev Admin Created Successfully`.
+```bash
+cd server
+node seed.js
+```
 
-**Now you can log in with:**
-- **Email**: `admin@campusgate.com`
-- **Password**: `password123`
+The script prints the admin email and password to the console. You can control the credentials with the `DEV_ADMIN_EMAIL` and `DEV_ADMIN_PASSWORD` environment variables (in `server/.env`); if `DEV_ADMIN_PASSWORD` is not set, a random password is generated and printed.
 
 ### 5. Run the Application
 You can run both client and server concurrently from the root:
