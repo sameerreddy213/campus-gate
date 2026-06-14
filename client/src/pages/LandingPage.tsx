@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Shield, GraduationCap, Clock, Menu, X, ArrowRight, Lock, Book, Mail } from "lucide-react";
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const fadeInUp = {
     initial: { opacity: 0, y: 20 },
@@ -44,6 +45,7 @@ export default function LandingPage() {
                     <nav className="hidden md:flex items-center gap-6">
                         <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Features</a>
                         <a href="#how-it-works" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">How it Works</a>
+                        <ThemeToggle />
                         <Link to="/login">
                             <Button>Login</Button>
                         </Link>

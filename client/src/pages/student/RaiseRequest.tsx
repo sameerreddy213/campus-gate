@@ -23,6 +23,8 @@ export default function StudentRaiseRequest() {
     destination: "",
     outDate: undefined as Date | undefined,
     outTime: "",
+    returnDate: undefined as Date | undefined,
+    returnTime: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,7 +39,7 @@ export default function StudentRaiseRequest() {
       // Combine date and time
       const outDateTime = new Date(formData.outDate);
       const [outH, outM] = formData.outTime.split(':');
-      outDateTime.setHours(parseInt(outH), parseInt(outM));
+      outDateTime.setHours(parseInt(outH), parseInt(outM), 0, 0);
 
       // Validation: Check if outDate is in the past
       if (outDateTime < new Date()) {
@@ -46,10 +48,24 @@ export default function StudentRaiseRequest() {
         return;
       }
 
+      // Optional expected return
+      let returnDateTime: Date | undefined;
+      if (formData.returnDate && formData.returnTime) {
+        returnDateTime = new Date(formData.returnDate);
+        const [rH, rM] = formData.returnTime.split(':');
+        returnDateTime.setHours(parseInt(rH), parseInt(rM), 0, 0);
+        if (returnDateTime <= outDateTime) {
+          toast({ title: "Invalid Return", description: "Expected return must be after the out time", variant: "destructive" });
+          setLoading(false);
+          return;
+        }
+      }
+
       await apiClient.post('/student/requests', {
         purpose: formData.purpose,
         destination: formData.destination,
         outDate: outDateTime,
+        returnDate: returnDateTime,
       });
       toast({ title: "Request Sent", description: "Waiting for parent approval" });
       navigate("/student"); // Fixed route
@@ -110,6 +126,33 @@ export default function StudentRaiseRequest() {
               <div className="space-y-2">
                 <Label>Out Time</Label>
                 <Input type="time" required value={formData.outTime} onChange={e => setFormData(p => ({ ...p, outTime: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Expected Return Date <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !formData.returnDate && "text-muted-foreground")}>
+                      {formData.returnDate ? format(formData.returnDate, "PPP") : <span>Pick a date</span>}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.returnDate}
+                      onSelect={(d) => setFormData(p => ({ ...p, returnDate: d }))}
+                      initialFocus
+                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-2">
+                <Label>Expected Return Time</Label>
+                <Input type="time" value={formData.returnTime} onChange={e => setFormData(p => ({ ...p, returnTime: e.target.value }))} />
               </div>
             </div>
 

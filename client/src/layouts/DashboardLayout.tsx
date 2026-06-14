@@ -15,10 +15,12 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from 
 import {
   Building2, Users, GraduationCap, Shield, BarChart3, ClipboardList,
   Home, UserPlus, FileText, Upload, History, LogOut, Bell, Menu,
-  ChevronLeft, User, Phone, Calendar, CheckSquare, Lock
+  ChevronLeft, User, Phone, Calendar, CheckSquare, Lock, ScrollText
 } from "lucide-react";
 import type { UserRole } from "@/types";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import api from "@/lib/api";
 import { AnimatePresence } from "framer-motion";
 import PageTransition from "@/components/PageTransition";
 
@@ -35,6 +37,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: "Add College", path: "/dev-admin/add-college", icon: UserPlus },
     { label: "Add Admin", path: "/dev-admin/add-admin", icon: Shield },
     { label: "Analytics", path: "/dev-admin/analytics", icon: BarChart3 },
+    { label: "Audit Logs", path: "/dev-admin/audit-logs", icon: ScrollText },
   ],
   "college-admin": [
     { label: "Dashboard", path: "/college-admin", icon: Home },
@@ -44,6 +47,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: "Assign Students", path: "/college-admin/assign", icon: Users },
     { label: "Outing Requests", path: "/college-admin/requests", icon: ClipboardList },
     { label: "Reports", path: "/college-admin/reports", icon: FileText },
+    { label: "Audit Logs", path: "/college-admin/audit-logs", icon: ScrollText },
     { label: "Settings", path: "/college-admin/settings", icon: CheckSquare },
   ],
   warden: [
@@ -119,8 +123,7 @@ export function DashboardLayout() {
 
   const fetchNotifications = async () => {
     try {
-      const module = await import("@/lib/api");
-      const res = await module.default.get('/notifications');
+      const res = await api.get('/notifications');
       setNotifications(res.data.data);
       setUnreadCount(res.data.unreadCount);
     } catch (error) {
@@ -130,13 +133,35 @@ export function DashboardLayout() {
 
   const markAllRead = async () => {
     try {
-      const module = await import("@/lib/api");
-      await module.default.put('/notifications/read-all');
+      await api.put('/notifications/read-all');
       setUnreadCount(0);
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     } catch (error) {
       console.error("Failed to mark notifications read", error);
     }
+  };
+
+  // Where a notification should take the current role when clicked.
+  const requestsPathByRole: Partial<Record<UserRole, string>> = {
+    student: "/student/requests",
+    warden: "/warden/requests",
+    parent: "/parent",
+    watchman: "/watchman",
+    "college-admin": "/college-admin/requests",
+  };
+
+  const handleNotificationClick = async (notif: any) => {
+    if (!notif.read) {
+      setNotifications(prev => prev.map(n => (n._id === notif._id ? { ...n, read: true } : n)));
+      setUnreadCount(c => Math.max(0, c - 1));
+      try {
+        await api.put(`/notifications/${notif._id}/read`);
+      } catch (error) {
+        console.error("Failed to mark notification read", error);
+      }
+    }
+    const dest = user ? requestsPathByRole[user.role] : undefined;
+    if (dest) navigate(dest);
   };
 
   // Redirect to login only once the auth check has finished (otherwise a hard
@@ -162,15 +187,13 @@ export function DashboardLayout() {
 
     // Role-based logic
     if (user.role === "college-admin") {
-      import("@/lib/api").then((module) => {
-        module.default.get('/college-admin/settings')
-          .then(res => {
-            if (res.data.data && res.data.data.enableGateSecurity !== undefined) {
-              setEnableGateSecurity(res.data.data.enableGateSecurity);
-            }
-          })
-          .catch(err => console.error("Failed to fetch settings", err));
-      });
+      api.get('/college-admin/settings')
+        .then(res => {
+          if (res.data.data && res.data.data.enableGateSecurity !== undefined) {
+            setEnableGateSecurity(res.data.data.enableGateSecurity);
+          }
+        })
+        .catch(err => console.error("Failed to fetch settings", err));
     }
 
     // Initial Fetch
@@ -262,6 +285,7 @@ export function DashboardLayout() {
           </div>
 
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             {/* Notification Bell */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -293,8 +317,9 @@ export function DashboardLayout() {
                       {notifications.map((notif: any) => (
                         <div
                           key={notif._id}
+                          onClick={() => handleNotificationClick(notif)}
                           className={cn(
-                            "px-4 py-3 border-b last:border-0 hover:bg-muted/50 transition-colors cursor-default",
+                            "px-4 py-3 border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer",
                             !notif.read && "bg-muted/30"
                           )}
                         >

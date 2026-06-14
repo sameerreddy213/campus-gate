@@ -3,11 +3,15 @@ const Student = require('../models/Student');
 const { createNotification, notifyParent } = require('./notificationController');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
+const { logAudit } = require('../utils/audit');
+const { expireStaleRequests } = require('../utils/expiry');
 
 // @desc    Get Warden Dashboard Stats
 // @route   GET /api/warden/dashboard
 // @access  Private (Warden)
 exports.getDashboardStats = asyncHandler(async (req, res, next) => {
+    await expireStaleRequests(req.collegeId);
+
     const pendingRequests = await OutingRequest.countDocuments({
         wardenId: req.user.id,
         status: 'pending-warden'
@@ -144,6 +148,8 @@ exports.updateRequestStatus = asyncHandler(async (req, res, next) => {
     request.wardenDecisionAt = Date.now();
     await request.save();
 
+    await logAudit(req, `request.${status}`, { requestId: request._id, studentId: request.studentId });
+
     // Notify Student
     if (status === 'approved' || status === 'rejected') {
         const student = await Student.findById(request.studentId);
@@ -191,6 +197,8 @@ exports.markStudentOut = asyncHandler(async (req, res, next) => {
     request.outAt = Date.now();
     await request.save();
 
+    await logAudit(req, 'request.out', { requestId: request._id, by: 'warden' });
+
     // Notify Student & Parent
     const student = await Student.findById(request.studentId).populate('userId', 'name');
     if (student) {
@@ -231,6 +239,8 @@ exports.markStudentReturned = asyncHandler(async (req, res, next) => {
     request.status = 'returned';
     request.returnedAt = Date.now();
     await request.save();
+
+    await logAudit(req, 'request.returned', { requestId: request._id, by: 'warden' });
 
     // Notify Student & Parent
     const student = await Student.findById(request.studentId).populate('userId', 'name');

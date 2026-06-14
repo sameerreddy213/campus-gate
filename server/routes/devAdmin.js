@@ -1,5 +1,15 @@
 const express = require('express');
-const { createCollege, getColleges, createCollegeAdmin, getGlobalAnalytics, deleteCollege, updateCollege } = require('../controllers/devAdminController');
+const {
+    createCollege,
+    getColleges,
+    createCollegeAdmin,
+    getGlobalAnalytics,
+    getAnalyticsBreakdown,
+    getAuditLogs,
+    deleteCollege,
+    updateCollege,
+    toggleCollegeStatus
+} = require('../controllers/devAdminController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -14,10 +24,12 @@ router.route('/colleges')
 
 router.route('/colleges/:id')
     .put(updateCollege)
-    .delete(require('../controllers/devAdminController').deleteCollege);
+    .delete(deleteCollege);
 
 router.post('/create-admin', createCollegeAdmin);
 router.get('/analytics', getGlobalAnalytics);
-router.put('/colleges/:id/status', require('../controllers/devAdminController').toggleCollegeStatus);
+router.get('/analytics/breakdown', getAnalyticsBreakdown);
+router.get('/audit-logs', getAuditLogs);
+router.put('/colleges/:id/status', toggleCollegeStatus);
 
 module.exports = router;

@@ -5,10 +5,12 @@ export type OutingStatus =
   | "parent-approved"
   | "parent-declined"
   | "pending-warden"
-  | "warden-approved"
   | "approved"
+  | "rejected"
   | "out"
-  | "returned";
+  | "returned"
+  | "expired"
+  | "cancelled";
 
 export interface User {
   id: string;
@@ -79,6 +81,16 @@ export interface OutingRequest {
   wardenDecisionAt?: string;
   outAt?: string;
   returnedAt?: string;
+  createdAt: string;
+}
+
+export interface AuditLog {
+  _id: string;
+  action: string;
+  details?: Record<string, unknown>;
+  ip?: string;
+  userId?: { _id: string; name: string; email: string; role: string } | string | null;
+  collegeId?: { _id: string; name: string; code: string } | string | null;
   createdAt: string;
 }
 

@@ -5,7 +5,9 @@ const {
     sendOtp,
     verifyOtp,
     updatePassword,
-    updateDetails
+    updateDetails,
+    forgotPassword,
+    resetPassword
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 // const { loginValidator, otpValidator } = require('../utils/validators'); 
@@ -30,6 +32,14 @@ router.post('/parent/verify-otp', [
     check('otp', 'OTP is required').isLength({ min: 6, max: 6 }),
     validate
 ], verifyOtp);
+router.post('/forgotpassword', [
+    check('email', 'Please include a valid email').isEmail(),
+    validate
+], forgotPassword);
+router.put('/resetpassword/:resettoken', [
+    check('password', 'Password must be at least 6 characters').isLength({ min: 6 }),
+    validate
+], resetPassword);
 router.put('/updatepassword', protect, updatePassword);
 router.put('/updatedetails', protect, updateDetails);
 router.get('/me', protect, getMe);

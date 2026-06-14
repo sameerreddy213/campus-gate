@@ -3,6 +3,7 @@ const Student = require('../models/Student');
 const { createNotification } = require('./notificationController');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
+const { logAudit } = require('../utils/audit');
 
 // Helper to find student(s) linked to parent phone
 // req.user has phone
@@ -80,6 +81,8 @@ exports.updateRequestStatus = asyncHandler(async (req, res, next) => {
     }
 
     await request.save();
+
+    await logAudit(req, `request.${status}`, { requestId: request._id });
 
     // Notify Student
     await createNotification(

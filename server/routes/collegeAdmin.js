@@ -12,7 +12,12 @@ const {
     getReports,
     addWatchman,
     getWatchmen,
-    deleteWatchman
+    deleteWatchman,
+    getAuditLogs,
+    deleteWarden,
+    deleteStudent,
+    getSettings,
+    updateSettings
 } = require('../controllers/collegeAdminController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 const { tenant } = require('../middleware/tenantMiddleware');
@@ -44,7 +49,7 @@ router.route('/wardens')
     ], addWarden);
 
 router.route('/wardens/:id')
-    .delete(require('../controllers/collegeAdminController').deleteWarden);
+    .delete(deleteWarden);
 
 router.route('/students')
     .get(getStudents)
@@ -59,7 +64,7 @@ router.route('/students')
     ], addStudent);
 
 router.route('/students/:id')
-    .delete(require('../controllers/collegeAdminController').deleteStudent);
+    .delete(deleteStudent);
 
 router.post('/students/bulk', upload.single('file'), bulkUploadStudents);
 
@@ -67,6 +72,7 @@ router.post('/assign', assignStudentsToWarden);
 
 router.get('/requests', getRequests);
 router.get('/reports', getReports);
+router.get('/audit-logs', getAuditLogs);
 
 router.route('/watchmen')
     .get(getWatchmen)
@@ -77,7 +83,7 @@ router.route('/watchmen/:id')
 
 
 router.route('/settings')
-    .get(require('../controllers/collegeAdminController').getSettings)
-    .put(require('../controllers/collegeAdminController').updateSettings);
+    .get(getSettings)
+    .put(updateSettings);
 
 module.exports = router;

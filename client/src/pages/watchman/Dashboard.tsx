@@ -292,19 +292,29 @@ export default function WatchmanDashboard() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filterRequests(outRequests).map(r => (
-                                        <TableRow key={r.id}>
+                                    {filterRequests(outRequests).map(r => {
+                                        const overstay = !!r.returnDate && new Date(r.returnDate).getTime() < Date.now();
+                                        return (
+                                        <TableRow key={r.id} className={overstay ? "bg-destructive/5" : undefined}>
                                             <TableCell className="font-medium">{r.studentName}</TableCell>
                                             <TableCell>{r.studentRoll}</TableCell>
                                             <TableCell>{r.outAt ? new Date(r.outAt).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() : '-'}</TableCell>
-                                            <TableCell>-</TableCell>
+                                            <TableCell>
+                                                {r.returnDate ? (
+                                                    <span className={overstay ? "text-destructive font-semibold" : ""}>
+                                                        {new Date(r.returnDate).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase()}
+                                                        {overstay && <Badge variant="outline" className="ml-2 border-destructive text-destructive">Overstay</Badge>}
+                                                    </span>
+                                                ) : '-'}
+                                            </TableCell>
                                             <TableCell>
                                                 <Button size="sm" variant="outline" onClick={() => handleMarkReturned(r.id, r.studentName)} disabled={loading} className="border-green-600 text-green-600 hover:bg-green-50">
                                                     <LogIn className="mr-2 h-4 w-4" /> Mark Returned
                                                 </Button>
                                             </TableCell>
                                         </TableRow>
-                                    ))}
+                                        );
+                                    })}
                                     {filterRequests(outRequests).length === 0 && (
                                         <TableRow>
                                             <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No students currently out</TableCell>

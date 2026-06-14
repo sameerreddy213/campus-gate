@@ -3,12 +3,15 @@ const Student = require('../models/Student');
 const { createNotification, notifyParent } = require('./notificationController');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
+const { logAudit } = require('../utils/audit');
+const { expireStaleRequests } = require('../utils/expiry');
 
 // @desc    Get Watchman Dashboard Stats
 // @route   GET /api/watchman/dashboard
 // @access  Private (Watchman)
 exports.getDashboardStats = asyncHandler(async (req, res, next) => {
     // req.collegeId is set by tenantMiddleware
+    await expireStaleRequests(req.collegeId);
 
     // Approved requests (Ready to go out)
     const approvedRequests = await OutingRequest.countDocuments({
@@ -117,6 +120,8 @@ exports.markStudentOut = asyncHandler(async (req, res, next) => {
     request.outAt = Date.now();
     await request.save();
 
+    await logAudit(req, 'request.out', { requestId: request._id, by: 'watchman' });
+
     // Notify Student & Parent
     const student = await Student.findById(request.studentId).populate('userId', 'name');
     if (student) {
@@ -151,6 +156,8 @@ exports.markStudentReturned = asyncHandler(async (req, res, next) => {
     request.status = 'returned';
     request.returnedAt = Date.now();
     await request.save();
+
+    await logAudit(req, 'request.returned', { requestId: request._id, by: 'watchman' });
 
     // Notify Student & Parent
     const student = await Student.findById(request.studentId).populate('userId', 'name');

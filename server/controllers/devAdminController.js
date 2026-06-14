@@ -1,8 +1,10 @@
 const College = require('../models/College');
 const User = require('../models/User');
 const OutingRequest = require('../models/OutingRequest');
+const AuditLog = require('../models/AuditLog');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
+const { logAudit } = require('../utils/audit');
 
 // @desc    Create a new college
 // @route   POST /api/dev-admin/colleges
@@ -10,6 +12,8 @@ const { ErrorResponse } = require('../middleware/errorMiddleware');
 exports.createCollege = asyncHandler(async (req, res, next) => {
     const { name, code, city } = req.body;
     const college = await College.create({ name, code, city });
+
+    await logAudit(req, 'college.create', { collegeId: college._id, name: college.name });
 
     res.status(201).json({
         success: true,
@@ -71,6 +75,8 @@ exports.createCollegeAdmin = asyncHandler(async (req, res, next) => {
     const userData = user.toObject();
     delete userData.password;
 
+    await logAudit(req, 'admin.create', { userId: user._id, email: user.email, collegeId });
+
     res.status(201).json({
         success: true,
         data: userData
@@ -98,6 +104,78 @@ exports.getGlobalAnalytics = asyncHandler(async (req, res, next) => {
     });
 });
 
+// @desc    Detailed analytics (status breakdown, per-college, monthly trend)
+// @route   GET /api/dev-admin/analytics/breakdown
+// @access  Private (Dev Admin)
+exports.getAnalyticsBreakdown = asyncHandler(async (req, res, next) => {
+    // Status breakdown
+    const statusAgg = await OutingRequest.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+    const statusData = statusAgg.map(s => ({ status: s._id, count: s.count }));
+
+    // Per-college request counts (top 8)
+    const perCollegeAgg = await OutingRequest.aggregate([
+        { $group: { _id: '$collegeId', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 8 }
+    ]);
+    const collegeIds = perCollegeAgg.map(c => c._id);
+    const colleges = await College.find({ _id: { $in: collegeIds } }).select('name code');
+    const collegeMap = {};
+    colleges.forEach(c => { collegeMap[c._id.toString()] = c.code || c.name; });
+    const collegeData = perCollegeAgg.map(c => ({
+        college: c._id ? (collegeMap[c._id.toString()] || 'Unknown') : 'Unknown',
+        requests: c.count
+    }));
+
+    // Monthly trend for the last 6 months
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const monthAgg = await OutingRequest.aggregate([
+        { $match: { createdAt: { $gte: start } } },
+        {
+            $group: {
+                _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+                count: { $sum: 1 }
+            }
+        }
+    ]);
+    const monthLookup = {};
+    monthAgg.forEach(m => { monthLookup[`${m._id.year}-${m._id.month}`] = m.count; });
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyData = [];
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        monthlyData.push({
+            month: monthNames[d.getMonth()],
+            requests: monthLookup[`${d.getFullYear()}-${d.getMonth() + 1}`] || 0
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data: { statusData, collegeData, monthlyData }
+    });
+});
+
+// @desc    View audit logs (global)
+// @route   GET /api/dev-admin/audit-logs
+// @access  Private (Dev Admin)
+exports.getAuditLogs = asyncHandler(async (req, res, next) => {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+    const filter = {};
+    if (req.query.action) filter.action = req.query.action;
+
+    const logs = await AuditLog.find(filter)
+        .populate('userId', 'name email role')
+        .populate('collegeId', 'name code')
+        .sort({ createdAt: -1 })
+        .limit(limit);
+
+    res.status(200).json({ success: true, data: logs });
+});
+
 // @desc    Delete College
 // @route   DELETE /api/dev-admin/colleges/:id
 // @access  Private (Dev Admin)
@@ -116,6 +194,8 @@ exports.deleteCollege = asyncHandler(async (req, res, next) => {
     await OutingRequest.deleteMany({ collegeId: college._id });
 
     await college.deleteOne();
+
+    await logAudit(req, 'college.delete', { collegeId: college._id, name: college.name });
 
     res.status(200).json({
         success: true,
@@ -136,6 +216,8 @@ exports.toggleCollegeStatus = asyncHandler(async (req, res, next) => {
     // Toggle status
     college.status = college.status === 'active' ? 'suspended' : 'active';
     await college.save();
+
+    await logAudit(req, 'college.status_toggle', { collegeId: college._id, status: college.status });
 
     res.status(200).json({
         success: true,

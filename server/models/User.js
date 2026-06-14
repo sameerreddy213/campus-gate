@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -41,6 +42,8 @@ const userSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Student'
     }],
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,
     createdAt: {
         type: Date,
         default: Date.now
@@ -69,8 +72,23 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
 // Sign JWT and return
 userSchema.methods.getSignedJwtToken = function () {
     return jwt.sign({ id: this._id }, process.env.JWT_SECRET, {
-        expiresIn: process.env.JWT_EXPIRE
+        expiresIn: process.env.JWT_EXPIRE || '30d'
     });
+};
+
+// Generate and hash a password reset token. Returns the plain token (to be
+// delivered out-of-band); only the hashed version is stored.
+userSchema.methods.getResetPasswordToken = function () {
+    const resetToken = crypto.randomBytes(32).toString('hex');
+
+    this.resetPasswordToken = crypto
+        .createHash('sha256')
+        .update(resetToken)
+        .digest('hex');
+
+    this.resetPasswordExpire = Date.now() + 30 * 60 * 1000; // 30 minutes
+
+    return resetToken;
 };
 
 module.exports = mongoose.model('User', userSchema);

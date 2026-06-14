@@ -7,8 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Check, X, LogOut, RotateCcw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import apiClient from "@/lib/api";
+import { formatDate } from "@/lib/exportCsv";
 import type { OutingRequest } from "@/types";
 
 export default function WardenRequestsPage() {
@@ -74,19 +76,28 @@ export default function WardenRequestsPage() {
                 <TableHead>Roll No</TableHead>
                 <TableHead>Purpose</TableHead>
                 <TableHead>Out Date</TableHead>
-                <TableHead>Return Date</TableHead>
+                <TableHead>Expected Return</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {requests.map(r => (
-                <TableRow key={r.id}>
+              {requests.map(r => {
+                const overstay = r.status === "out" && !!r.returnDate && new Date(r.returnDate).getTime() < Date.now();
+                return (
+                <TableRow key={r.id} className={overstay ? "bg-destructive/5" : undefined}>
                   <TableCell className="font-medium">{r.studentName}</TableCell>
                   <TableCell>{r.studentRoll}</TableCell>
                   <TableCell className="max-w-[120px] truncate">{r.purpose}</TableCell>
-                  <TableCell>{new Date(r.outAt || r.outDate).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase()}</TableCell>
-                  <TableCell>{new Date(r.returnedAt || r.returnDate).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase()}</TableCell>
+                  <TableCell>{formatDate(r.outAt || r.outDate) || "-"}</TableCell>
+                  <TableCell>
+                    {(r.returnedAt || r.returnDate) ? (
+                      <span className={overstay ? "text-destructive font-semibold" : ""}>
+                        {formatDate(r.returnedAt || r.returnDate)}
+                        {overstay && <Badge variant="outline" className="ml-2 border-destructive text-destructive">Overstay</Badge>}
+                      </span>
+                    ) : "-"}
+                  </TableCell>
                   <TableCell><StatusBadge status={r.status} /></TableCell>
                   <TableCell>
                     <div className="flex gap-1">
@@ -114,10 +125,11 @@ export default function WardenRequestsPage() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
               {requests.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     No active requests found
                   </TableCell>
                 </TableRow>

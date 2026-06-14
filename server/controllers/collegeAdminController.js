@@ -3,8 +3,10 @@ const csv = require('csv-parser');
 const User = require('../models/User');
 const Student = require('../models/Student');
 const OutingRequest = require('../models/OutingRequest');
+const AuditLog = require('../models/AuditLog');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
+const { logAudit } = require('../utils/audit');
 
 // @desc    Get Dashboard Stats
 // @route   GET /api/college-admin/dashboard
@@ -71,6 +73,8 @@ exports.deleteWarden = asyncHandler(async (req, res, next) => {
 
     await warden.deleteOne();
 
+    await logAudit(req, 'warden.delete', { userId: warden._id });
+
     res.status(200).json({
         success: true,
         data: {}
@@ -95,6 +99,8 @@ exports.deleteStudent = asyncHandler(async (req, res, next) => {
 
     await student.deleteOne();
 
+    await logAudit(req, 'student.delete', { studentId: student._id });
+
     res.status(200).json({
         success: true,
         data: {}
@@ -118,6 +124,8 @@ exports.addWarden = asyncHandler(async (req, res, next) => {
 
     const wardenData = warden.toObject();
     delete wardenData.password;
+
+    await logAudit(req, 'warden.create', { userId: warden._id, email: warden.email });
 
     res.status(201).json({
         success: true,
@@ -172,6 +180,8 @@ exports.addStudent = asyncHandler(async (req, res, next) => {
         parentEmail,
         wardenId: wardenId || undefined // Optional
     });
+
+    await logAudit(req, 'student.create', { studentId: student._id, rollNumber });
 
     res.status(201).json({
         success: true,
@@ -349,23 +359,22 @@ exports.getRequests = asyncHandler(async (req, res, next) => {
     });
 });
 
-// @desc    Export Reports
+// @desc    Export Reports (filterable JSON the client renders/exports as CSV)
 // @route   GET /api/college-admin/reports
 // @access  Private (College Admin)
 exports.getReports = asyncHandler(async (req, res, next) => {
-    // Generate CSV report of all requests
-    // Just return JSON for now, frontend converts to CSV? 
-    // Prompt says "Export reports as CSV".  Let's allow basic filtering.
-
     const { fromDate, toDate, status } = req.query;
 
     let query = { collegeId: req.collegeId };
 
     if (fromDate && toDate) {
-        query.createdAt = {
-            $gte: new Date(fromDate),
-            $lte: new Date(toDate)
-        };
+        const from = new Date(fromDate);
+        const to = new Date(toDate);
+        // Include the whole "to" day
+        to.setHours(23, 59, 59, 999);
+        if (!isNaN(from.getTime()) && !isNaN(to.getTime())) {
+            query.createdAt = { $gte: from, $lte: to };
+        }
     }
 
     if (status) {
@@ -373,19 +382,22 @@ exports.getReports = asyncHandler(async (req, res, next) => {
     }
 
     const requests = await OutingRequest.find(query)
-        .populate('studentId')
-        .populate('wardenId', 'name');
+        .populate({ path: 'studentId', populate: { path: 'userId', select: 'name' } })
+        .populate('wardenId', 'name')
+        .sort({ createdAt: -1 });
 
-    // Transform for CSV
-    const csvData = requests.map(req => ({
-        Student: req.studentId?.rollNumber, // Accessing populated data might fail if student deleted
-        Warden: req.wardenId?.name,
-        Purpose: req.purpose,
-        Destination: req.destination,
-        OutDate: req.outDate,
-        ReturnDate: req.returnDate,
-        Status: req.status,
-        Created: req.createdAt
+    // Transform to flat rows the client can display and export.
+    const csvData = requests.map(reqDoc => ({
+        _id: reqDoc._id,
+        studentName: reqDoc.studentId?.userId?.name || 'Unknown',
+        rollNumber: reqDoc.studentId?.rollNumber || 'N/A',
+        wardenName: reqDoc.wardenId?.name || 'Unassigned',
+        purpose: reqDoc.purpose,
+        destination: reqDoc.destination,
+        outDate: reqDoc.outDate,
+        returnDate: reqDoc.returnDate,
+        status: reqDoc.status,
+        createdAt: reqDoc.createdAt
     }));
 
     res.status(200).json({
@@ -411,6 +423,8 @@ exports.addWatchman = asyncHandler(async (req, res, next) => {
 
     const watchmanData = watchman.toObject();
     delete watchmanData.password;
+
+    await logAudit(req, 'watchman.create', { userId: watchman._id, email: watchman.email });
 
     res.status(201).json({
         success: true,
@@ -441,6 +455,8 @@ exports.deleteWatchman = asyncHandler(async (req, res, next) => {
     }
 
     await watchman.deleteOne();
+
+    await logAudit(req, 'watchman.delete', { userId: watchman._id });
 
     res.status(200).json({
         success: true,
@@ -482,8 +498,24 @@ exports.updateSettings = asyncHandler(async (req, res, next) => {
 
     await college.save();
 
+    await logAudit(req, 'settings.update', { enableGateSecurity: college.config.enableGateSecurity });
+
     res.status(200).json({
         success: true,
         data: college.config
     });
+});
+
+// @desc    View audit logs for this college
+// @route   GET /api/college-admin/audit-logs
+// @access  Private (College Admin)
+exports.getAuditLogs = asyncHandler(async (req, res, next) => {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+
+    const logs = await AuditLog.find({ collegeId: req.collegeId })
+        .populate('userId', 'name email role')
+        .sort({ createdAt: -1 })
+        .limit(limit);
+
+    res.status(200).json({ success: true, data: logs });
 });

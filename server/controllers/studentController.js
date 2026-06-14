@@ -3,6 +3,7 @@ const OutingRequest = require('../models/OutingRequest');
 const { createNotification, notifyParent } = require('./notificationController');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
+const { expireStaleRequests } = require('../utils/expiry');
 
 // Helper to get student profile from user ID
 const getStudentProfile = async (userId) => {
@@ -13,6 +14,8 @@ const getStudentProfile = async (userId) => {
 // @route   GET /api/student/dashboard
 // @access  Private (Student)
 exports.getDashboardStats = asyncHandler(async (req, res, next) => {
+    await expireStaleRequests(req.user.collegeId);
+
     const student = await getStudentProfile(req.user.id);
     if (!student) return next(new ErrorResponse('Student profile not found', 404));
 
@@ -38,14 +41,29 @@ exports.getDashboardStats = asyncHandler(async (req, res, next) => {
 // @route   POST /api/student/requests
 // @access  Private (Student)
 exports.raiseRequest = asyncHandler(async (req, res, next) => {
-    const { purpose, destination, outDate } = req.body;
+    const { purpose, destination, outDate, returnDate } = req.body;
 
     // Validate dates
     const out = new Date(outDate);
     const now = new Date();
 
+    if (isNaN(out.getTime())) {
+        return next(new ErrorResponse('Invalid out date', 400));
+    }
+
     if (out < now) {
         return next(new ErrorResponse('Out date cannot be in the past', 400));
+    }
+
+    let expectedReturn;
+    if (returnDate) {
+        expectedReturn = new Date(returnDate);
+        if (isNaN(expectedReturn.getTime())) {
+            return next(new ErrorResponse('Invalid return date', 400));
+        }
+        if (expectedReturn <= out) {
+            return next(new ErrorResponse('Expected return must be after the out date', 400));
+        }
     }
 
     const student = await getStudentProfile(req.user.id);
@@ -78,6 +96,7 @@ exports.raiseRequest = asyncHandler(async (req, res, next) => {
         purpose,
         destination,
         outDate,
+        returnDate: expectedReturn,
         status: initialStatus
     });
 

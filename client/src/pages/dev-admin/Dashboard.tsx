@@ -9,16 +9,6 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import apiClient from "@/lib/api";
 import type { College } from "@/types";
 
-// Mock chart data for now as API doesn't provide trends yet
-const chartData = [
-  { month: "Sep", requests: 120 },
-  { month: "Oct", requests: 185 },
-  { month: "Nov", requests: 210 },
-  { month: "Dec", requests: 95 },
-  { month: "Jan", requests: 240 },
-  { month: "Feb", requests: 160 },
-];
-
 import { motion } from "framer-motion";
 
 const container = {
@@ -44,16 +34,19 @@ export default function DevAdminDashboard() {
     totalRequests: 0,
   });
   const [recentColleges, setRecentColleges] = useState<College[]>([]);
+  const [chartData, setChartData] = useState<{ month: string; requests: number }[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [statsRes, collegesRes] = await Promise.all([
+        const [statsRes, collegesRes, breakdownRes] = await Promise.all([
           apiClient.get('/dev-admin/analytics'),
-          apiClient.get('/dev-admin/colleges')
+          apiClient.get('/dev-admin/colleges'),
+          apiClient.get('/dev-admin/analytics/breakdown')
         ]);
         setStats(statsRes.data.data);
         setRecentColleges(collegesRes.data.data.slice(0, 5));
+        setChartData(breakdownRes.data.data.monthlyData || []);
       } catch (error) {
         console.error("Failed to fetch dashboard data", error);
       }
@@ -70,9 +63,9 @@ export default function DevAdminDashboard() {
     >
       <PageHeader title="Developer Admin Dashboard" description="Global overview of all colleges" />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <motion.div variants={item}><StatCard title="Total Colleges" value={stats.colleges} change="+1 this month" changeType="positive" icon={Building2} /></motion.div>
-        <motion.div variants={item}><StatCard title="Total Students" value={stats.students} change="+12%" changeType="positive" icon={Users} /></motion.div>
-        <motion.div variants={item}><StatCard title="Total Requests" value={stats.totalRequests} change="This week" changeType="neutral" icon={ClipboardList} /></motion.div>
+        <motion.div variants={item}><StatCard title="Total Colleges" value={stats.colleges} icon={Building2} /></motion.div>
+        <motion.div variants={item}><StatCard title="Total Students" value={stats.students} icon={Users} /></motion.div>
+        <motion.div variants={item}><StatCard title="Total Requests" value={stats.totalRequests} icon={ClipboardList} /></motion.div>
         <motion.div variants={item}><StatCard title="Active Colleges" value={recentColleges.filter(c => c.status === "active").length} icon={TrendingUp} /></motion.div>
       </div>
 

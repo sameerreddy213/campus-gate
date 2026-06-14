@@ -5,6 +5,7 @@ const OtpLog = require('../models/OtpLog');
 const Student = require('../models/Student');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
+const { logAudit } = require('../utils/audit');
 
 // Helper to get full user profile with role-specific data
 const getUserProfile = async (user) => {
@@ -106,6 +107,81 @@ exports.login = asyncHandler(async (req, res, next) => {
     if (!isMatch) {
         return next(new ErrorResponse('Invalid credentials', 401));
     }
+
+    await logAudit(req, 'auth.login', { userId: user._id, role: user.role });
+    await sendTokenResponse(user, 200, res);
+});
+
+// @desc    Forgot password - issue a reset token
+// @route   POST /api/auth/forgotpassword
+// @access  Public
+exports.forgotPassword = asyncHandler(async (req, res, next) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return next(new ErrorResponse('Please provide an email', 400));
+    }
+
+    const user = await User.findOne({ email });
+
+    // Always respond the same way to avoid leaking which emails are registered.
+    const genericResponse = {
+        success: true,
+        message: 'If an account with that email exists, a password reset link has been generated.'
+    };
+
+    if (!user) {
+        return res.status(200).json(genericResponse);
+    }
+
+    const resetToken = user.getResetPasswordToken();
+    await user.save({ validateBeforeSave: false });
+
+    // NOTE: No email/SMS provider is configured. In production you would email
+    // the link below to the user. In development we return/log it for testing.
+    const resetUrl = `${req.headers.origin || ''}/reset-password/${resetToken}`;
+    console.log(`Password reset link for ${email}: ${resetUrl}`);
+
+    await logAudit(req, 'auth.forgot_password', { userId: user._id });
+
+    const payload = { ...genericResponse };
+    if (process.env.NODE_ENV !== 'production') {
+        payload.resetToken = resetToken; // dev convenience only
+    }
+    res.status(200).json(payload);
+});
+
+// @desc    Reset password using a token
+// @route   PUT /api/auth/resetpassword/:resettoken
+// @access  Public
+exports.resetPassword = asyncHandler(async (req, res, next) => {
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+        return next(new ErrorResponse('Password must be at least 6 characters', 400));
+    }
+
+    // Hash the incoming token to match the stored hash
+    const resetPasswordToken = crypto
+        .createHash('sha256')
+        .update(req.params.resettoken)
+        .digest('hex');
+
+    const user = await User.findOne({
+        resetPasswordToken,
+        resetPasswordExpire: { $gt: Date.now() }
+    });
+
+    if (!user) {
+        return next(new ErrorResponse('Invalid or expired token', 400));
+    }
+
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    await logAudit(req, 'auth.reset_password', { userId: user._id });
 
     await sendTokenResponse(user, 200, res);
 });

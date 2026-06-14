@@ -4,11 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Search, Filter } from "lucide-react";
+import { Search, Filter, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import apiClient from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
+import { exportToCsv, formatDate } from "@/lib/exportCsv";
 import type { OutingRequest } from "@/types";
 
 export default function CollegeAdminRequestsPage() {
@@ -37,9 +38,31 @@ export default function CollegeAdminRequestsPage() {
     return matchesSearch && matchesStatus;
   });
 
+  const handleExport = () => {
+    if (filtered.length === 0) return;
+    exportToCsv<OutingRequest>(
+      "outing_requests",
+      [
+        { header: "Student", value: (r) => r.studentName },
+        { header: "Roll No", value: (r) => r.rollNumber },
+        { header: "Purpose", value: (r) => r.purpose },
+        { header: "Destination", value: (r) => r.destination },
+        { header: "Out Date", value: (r) => formatDate(r.outDate) },
+        { header: "Expected Return", value: (r) => formatDate(r.returnDate) },
+        { header: "Warden", value: (r) => r.wardenName || "" },
+        { header: "Status", value: (r) => r.status },
+      ],
+      filtered
+    );
+  };
+
   return (
     <div className="space-y-6">
-      <PageHeader title="Outing Requests" description="View all student outing requests" />
+      <PageHeader
+        title="Outing Requests"
+        description="View all student outing requests"
+        action={<Button variant="outline" onClick={handleExport} disabled={filtered.length === 0}><Download className="mr-2 h-4 w-4" />Export CSV</Button>}
+      />
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4 mb-4">
@@ -77,8 +100,8 @@ export default function CollegeAdminRequestsPage() {
                   <TableCell>{r.rollNumber}</TableCell>
                   <TableCell>
                     <div className="text-xs">
-                      <div>Out: {new Date(r.outDate).toLocaleDateString()}</div>
-                      <div>In: {new Date(r.returnDate).toLocaleDateString()}</div>
+                      <div>Out: {formatDate(r.outDate) || "-"}</div>
+                      <div>In: {formatDate(r.returnDate) || "-"}</div>
                     </div>
                   </TableCell>
                   <TableCell className="max-w-[200px] truncate">{r.purpose}</TableCell>

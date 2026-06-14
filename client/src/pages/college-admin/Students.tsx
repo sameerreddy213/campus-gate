@@ -7,11 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search, Upload, Trash2 } from "lucide-react";
+import { Plus, Search, Upload, Trash2, Download } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import apiClient from "@/lib/api";
 import type { Student, Warden } from "@/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { exportToCsv } from "@/lib/exportCsv";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function StudentsPage() {
@@ -77,10 +78,14 @@ export default function StudentsPage() {
 
     setLoading(true);
     try {
-      await apiClient.post('/college-admin/students/upload', formData, {
+      const res = await apiClient.post('/college-admin/students/bulk', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      toast({ title: "CSV Uploaded", description: "Students imported successfully" });
+      const d = res.data?.data;
+      toast({
+        title: "CSV Processed",
+        description: d ? `${d.successful} added, ${d.failed} failed of ${d.total}` : "Students imported"
+      });
       setDialogOpen(false);
       fetchStudents();
     } catch (error: any) {
@@ -89,6 +94,25 @@ export default function StudentsPage() {
       setLoading(false);
       setFile(null);
     }
+  };
+
+  const handleExport = () => {
+    if (students.length === 0) return;
+    exportToCsv<Student>(
+      "students",
+      [
+        { header: "Name", value: (s) => s.name },
+        { header: "Roll No", value: (s) => s.rollNumber },
+        { header: "Email", value: (s) => s.email },
+        { header: "Phone", value: (s) => s.phone },
+        { header: "Department", value: (s) => s.department },
+        { header: "Year", value: (s) => s.year },
+        { header: "Warden", value: (s) => s.wardenName || "" },
+        { header: "Parent Name", value: (s) => s.parentName },
+        { header: "Parent Phone", value: (s) => s.parentPhone },
+      ],
+      students
+    );
   };
 
   const handleDelete = async () => {
@@ -109,6 +133,8 @@ export default function StudentsPage() {
         title="Students"
         description="Manage students in your college"
         action={
+          <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExport} disabled={students.length === 0}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Add Student</Button></DialogTrigger>
             <DialogContent className="max-w-lg">
@@ -162,6 +188,7 @@ export default function StudentsPage() {
               </Tabs>
             </DialogContent>
           </Dialog>
+          </div>
         }
       />
       <Card>

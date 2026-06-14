@@ -3,10 +3,14 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 
 import LoginPage from "./pages/Login";
+import ForgotPasswordPage from "./pages/ForgotPassword";
+import ResetPasswordPage from "./pages/ResetPassword";
+import AuditLogsPage from "./pages/AuditLogs";
 import NotFound from "./pages/NotFound";
 
 // Dev Admin
@@ -55,10 +59,11 @@ import PageTransition from "@/components/PageTransition";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AuthProvider>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AuthProvider>
         <BrowserRouter
           future={{
             v7_startTransition: true,
@@ -69,6 +74,8 @@ const App = () => (
             <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
             <Route path="/documentation" element={<PageTransition><Documentation /></PageTransition>} />
             <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
+            <Route path="/forgot-password" element={<PageTransition><ForgotPasswordPage /></PageTransition>} />
+            <Route path="/reset-password/:token" element={<PageTransition><ResetPasswordPage /></PageTransition>} />
 
             {/* Dev Admin */}
             <Route element={<DashboardLayout />}>
@@ -77,6 +84,7 @@ const App = () => (
               <Route path="/dev-admin/add-college" element={<AddCollegePage />} />
               <Route path="/dev-admin/add-admin" element={<AddAdminPage />} />
               <Route path="/dev-admin/analytics" element={<AnalyticsPage />} />
+              <Route path="/dev-admin/audit-logs" element={<AuditLogsPage />} />
             </Route>
             <Route element={<DashboardLayout />}>
               <Route path="/college-admin" element={<CollegeAdminDashboard />} />
@@ -87,6 +95,7 @@ const App = () => (
               <Route path="/college-admin/requests" element={<CollegeAdminRequestsPage />} />
               <Route path="/college-admin/reports" element={<ReportsPage />} />
               <Route path="/college-admin/settings" element={<SettingsPage />} />
+              <Route path="/college-admin/audit-logs" element={<AuditLogsPage />} />
             </Route>
 
             {/* Warden */}
@@ -124,9 +133,10 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-      </AuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider >
+        </AuthProvider>
+      </TooltipProvider>
+    </ThemeProvider>
+  </QueryClientProvider>
 );
 
 export default App;

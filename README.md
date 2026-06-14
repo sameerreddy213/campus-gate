@@ -1,185 +1,150 @@
-# CampusGate - Smart Gate Pass Management System 🛡️
+# CampusGate — Smart Gate Pass Management System 🛡️
 
-**CampusGate** is a comprehensive, digital solution designed to streamline the gate pass process for educational institutions. It facilitates seamless communication between students, wardens, parents, and security personnel, ensuring safety, efficiency, and accountability.
+**CampusGate** is a multi-tenant, digital gate-pass system for educational institutions. It streamlines the outing-request workflow between **students, parents, wardens, and security staff (watchmen)** — with QR-based gate verification, role-based dashboards, and full audit trails.
 
 **[🚀 Live Demo: campus-gate-app.azurewebsites.net](https://campus-gate-app.azurewebsites.net)**
 
-> **🚀 Calls for Collaboration!**  
-> This project is open for contributions. We are looking for developers to help find bugs, improve code quality, and add new features. If you find an issue, please open a PR!
+> This is an independent project maintained by a single developer. It is **not open for public sign-up**. To request access for your institution, email **[contact@sameerreddy.in](mailto:contact@sameerreddy.in)**.
 
 ---
 
-## ✨ Key Features
+## ✨ Features
 
-- **For Students:**
-  - Easy digital outing requests.
-  - Real-time status tracking.
-  - History of past outings.
-  - QR Code generation for gate exit/entry.
+**Students**
+- Raise outing requests with purpose, destination, and out/expected-return times.
+- Track live status through the approval pipeline.
+- Time-gated **QR gate pass** for exit/entry.
+- Full request history.
 
-- **For Wardens/Authorities:**
-  - Digital dashboard for reviewing requests.
-  - One-click approval/rejection.
-  - Insights into student movement.
+**Parents**
+- OTP-based login (linked by phone number).
+- Approve or decline their child's requests.
+- Activity history.
 
-- **For Parents:**
-  - SMS/Notification alerts (Planned).
-  - Approval workflow for specific outing types.
+**Wardens**
+- Review and approve/reject requests assigned to them.
+- Mark students out/returned (when gate security is disabled).
+- See **overstay** flags for students out past their expected return.
 
-- **For Security (Watchman):**
-  - QR Code scanner implementation.
-  - Real-time verification of passes.
-  - Entry/Exit logging.
+**Watchmen (Gate Security)**
+- Scan a student's **QR code** (or search by name/roll) to verify a pass.
+- One-tap mark out / mark returned.
+- Overstay highlighting.
+
+**College Admins**
+- Manage wardens, watchmen, and students (single add or **bulk CSV upload**).
+- Assign students to wardens.
+- View all requests, export **CSV reports** with date/status filters.
+- View a college-scoped **audit log**.
+- Toggle gate-security mode.
+
+**Developer Admin (super-tenant)**
+- Manage colleges and college admins.
+- Platform-wide **analytics** (status breakdown, per-college volume, monthly trend).
+- Global **audit log**.
+
+**Platform**
+- JWT auth, role-based access control, multi-tenant isolation by college.
+- Self-service **password reset** flow (delivery is stubbed — see note below).
+- Automatic expiry of stale/unused requests; overstay detection.
+- **Dark mode**, loading skeletons, and friendly empty/error states.
 
 ## 🛠️ Tech Stack
 
-- **Frontend:** React (Vite), TypeScript, Tailwind CSS, ShadCN UI, Framer Motion.
-- **Backend:** Node.js, Express.js.
-- **Database:** MongoDB.
-- **Authentication:** JWT (JSON Web Tokens).
+- **Frontend:** React 18 (Vite), TypeScript, Tailwind CSS, shadcn/ui, Recharts, Framer Motion.
+- **Backend:** Node.js, Express.
+- **Database:** MongoDB (Mongoose).
+- **Auth:** JWT.
+- **Hosting:** Azure App Service (also deployable to Vercel).
 
 ---
 
 ## 📂 Project Structure
 
-The project is organized into two main directories:
+```
+campus-gate/
+├── api/        # Vercel serverless entry (re-exports the Express app)
+├── client/     # React + Vite frontend
+├── server/     # Express API, Mongoose models, controllers, routes
+└── .github/    # CI/CD workflow (Azure deploy)
+```
 
-- **`/client`**: The React frontend application.
-- **`/server`**: The Node.js/Express backend API.
+This is an npm **workspaces** monorepo — `npm install` at the root installs both `client` and `server`.
 
 ---
 
-## 🚀 Getting Started
-
-Follow these instructions to set up the project locally.
+## 🚀 Local Setup
 
 ### Prerequisites
-- Node.js (v18+ recommended)
-- MongoDB (Local or Atlas connection string)
-- npm or yarn
+- Node.js v18+ (v20 recommended)
+- MongoDB (local or an Atlas connection string)
 
-### 1. Clone the Repository
+### 1. Clone & install
 ```bash
-git clone https://github.com/sameerredy213/campus-gate-pass.git
-cd campus-gate-pass
+git clone https://github.com/sameerreddy213/campus-gate.git
+cd campus-gate
+npm install        # installs client + server via workspaces
 ```
 
-### 2. Backend Setup
-Navigate to the server directory, install dependencies, and configure environment variables.
-
-```bash
-cd server
-npm install
-```
-
-Create a `.env` file in the `/server` directory:
-```env
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/campus-gate-pass
-JWT_SECRET=your_super_secret_key
-# Add other keys as needed
-```
-
-Start the backend server:
-```bash
-npm run dev
-```
-
-### 3. Frontend Setup
-Open a new terminal, navigate to the client directory, and install dependencies.
-
-```bash
-cd client
-npm install
-```
-
-Start the frontend development server:
-```bash
-npm run dev
-```
-
-The application should now be running at `http://localhost:8080`.
-
----
-
-## 🤝 Contributing
-
-We welcome contributions from the community! Here's how you can help:
-
-1.  **Fork the repository.**
-2.  **Create a new branch** (`git checkout -b feature/AmazingFeature`).
-3.  **Commit your changes** (`git commit -m 'Add some AmazingFeature'`).
-4.  **Push to the branch** (`git push origin feature/AmazingFeature`).
-5.  **Open a Pull Request.**
-
-### 🐛 Found a Bug?
-Please open an issue in the repository describing the bug, how to reproduce it, and any screenshots if possible.
-
----
-
-## 💻 Local Setup & Installation
-
-Follow these steps to get the project running on your local machine.
-
-### Prerequisites
-- Node.js (v18 or higher)
-- MongoDB (Local or Atlas URL)
-- Git
-
-### 1. Clone the Repository
-```bash
-git clone https://github.com/sameerreddy213/college-gate.git
-cd college-gate
-```
-
-### 2. Install Dependencies
-We use a monorepo structure. You can install all dependencies from the root:
-```bash
-npm run install-all
-```
-
-### 3. Environment Configuration
-Create a `.env` file in the `server` directory:
-```bash
-cd server
-cp .env.example .env
-```
-Edit `.env` and add your credentials:
+### 2. Configure environment
+Create `server/.env`:
 ```env
 PORT=5000
 MONGO_URI=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret
+JWT_SECRET=a_long_random_secret
 JWT_EXPIRE=30d
 NODE_ENV=development
 ```
 
-### 4. 🛑 IMPORTANT: First-Time Setup (Seeding)
-**You must do this before you can log in!**
+(Optional) create `client/.env` if you need to override the API base — by default the client calls `/api` and Vite proxies it to `http://localhost:5000` in development.
 
-The database starts empty. To create the initial **Administrator** account, run the seed script from the `server` directory:
-
+### 3. Seed the first admin
+The database starts empty. Create the **Developer Admin** account:
 ```bash
 cd server
-node seed.js
+node scripts/setDevAdmin.js you@example.com YourStrongPassword
+# or omit args to use DEV_ADMIN_EMAIL / DEV_ADMIN_PASSWORD env vars,
+# or omit the password to have a random one generated and printed.
 ```
+This script is safe to run against a live database — it only touches the dev-admin account.
 
-The script prints the admin email and password to the console. You can control the credentials with the `DEV_ADMIN_EMAIL` and `DEV_ADMIN_PASSWORD` environment variables (in `server/.env`); if `DEV_ADMIN_PASSWORD` is not set, a random password is generated and printed.
-
-### 5. Run the Application
-You can run both client and server concurrently from the root:
+### 4. Run
+From the repo root (runs client + server together):
 ```bash
-# From root directory
 npm run dev
 ```
-- **Frontend**: http://localhost:8080
-- **Backend**: http://localhost:5000
+- Frontend: http://localhost:8080
+- Backend:  http://localhost:5000
 
 ---
 
-##  License
+## ☁️ Deployment
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+CI/CD is handled by **[.github/workflows/main_campus-gate-app.yml](.github/workflows/main_campus-gate-app.yml)**, which on every push to `main`:
+1. Installs deps (with npm cache), builds the client, prunes dev dependencies.
+2. Authenticates to Azure via OIDC and deploys to the App Service.
+
+It runs as a single job (no slow build-artifact round-trip) for fast deploys.
+
+**Required App Service settings** (Configuration → Environment variables):
+- `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRE`, and `NODE_ENV=production`
+- `SCM_DO_BUILD_DURING_DEPLOYMENT=false` (the workflow already builds; the package ships ready to run)
+
+The server serves the built client from `client/dist` when `NODE_ENV=production`. The app is also deployable to Vercel via [vercel.json](vercel.json) (`api/index.js` is the serverless entry).
 
 ---
 
-Made with ❤️ by [Sameer Reddy](https://github.com/sameerredy213)
+## 📌 Notes & Limitations
+
+- **Messaging is not wired to a provider.** Parent OTPs and password-reset links are logged to the server console in development (and the reset token is returned in dev responses for testing). To go fully live, integrate an SMS/email provider in `authController` where these are logged.
+- **Default credentials must be changed.** Older builds shipped a public seed with well-known credentials; use `scripts/setDevAdmin.js` to set your own.
+
+---
+
+## 📝 License
+
+Licensed under the MIT License — see [LICENSE](LICENSE).
+
+---
+
+Made with ❤️ by [Sameer Reddy](https://github.com/sameerreddy213) · Access requests: [contact@sameerreddy.in](mailto:contact@sameerreddy.in)
