@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Shield, GraduationCap, Clock, Menu, X, ArrowRight, Lock, Book } from "lucide-react";
+import { Shield, GraduationCap, Clock, Menu, X, ArrowRight, Lock, Book, Mail } from "lucide-react";
 import { useState } from "react";
 import { motion } from "framer-motion";
 
@@ -97,7 +97,7 @@ export default function LandingPage() {
                             transition={{ duration: 0.7, delay: 0.2 }}
                             className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed"
                         >
-                            Streamline outing requests, automate approvals, and ensure student safety with our comprehensive digital gate pass system. Trusted by top institutions.
+                            Streamline outing requests, automate approvals, and ensure student safety with a comprehensive digital gate pass system for students, parents, wardens, and security.
                         </motion.p>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -107,11 +107,11 @@ export default function LandingPage() {
                         >
                             <Link to="/login">
                                 <Button size="lg" className="h-14 px-8 text-lg rounded-full shadow-lg hover:shadow-xl transition-all w-full sm:w-auto">
-                                    Get Started <ArrowRight className="ml-2 h-5 w-5" />
+                                    Login <ArrowRight className="ml-2 h-5 w-5" />
                                 </Button>
                             </Link>
-                            <Button size="lg" variant="outline" className="h-14 px-8 text-lg rounded-full w-full sm:w-auto">
-                                View Demo
+                            <Button size="lg" variant="outline" className="h-14 px-8 text-lg rounded-full w-full sm:w-auto" asChild>
+                                <a href="#access">Request Access</a>
                             </Button>
                         </motion.div>
 
@@ -284,79 +284,35 @@ export default function LandingPage() {
                     </div>
                 </section>
 
-                {/* Pricing Section */}
-                <section id="pricing" className="py-20 container mx-auto px-4">
-                    <motion.div {...fadeInUp} className="text-center mb-16">
-                        <h2 className="text-3xl font-bold tracking-tight mb-4">Simple, Transparent Pricing</h2>
-                        <p className="text-muted-foreground">Choose the plan that fits your institution's needs.</p>
-                    </motion.div>
-                    <motion.div
-                        variants={staggerContainer}
-                        initial="hidden"
-                        whileInView="show"
-                        viewport={{ once: true }}
-                        className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto"
-                    >
-                        <motion.div variants={staggerItem}>
-                            <Card className="flex flex-col h-full">
-                                <CardContent className="pt-8 flex-1 space-y-6">
-                                    <div>
-                                        <h3 className="font-bold text-xl">Starter</h3>
-                                        <div className="text-3xl font-bold mt-2">$0<span className="text-base font-normal text-muted-foreground">/mo</span></div>
-                                        <p className="text-sm text-muted-foreground mt-2">For small hostels & pilots</p>
-                                    </div>
-                                    <ul className="space-y-3 text-sm">
-                                        <li className="flex items-center gap-2">✓ Up to 50 Students</li>
-                                        <li className="flex items-center gap-2">✓ Basic Reporting</li>
-                                        <li className="flex items-center gap-2">✓ Email Support</li>
-                                    </ul>
-                                    <Button className="w-full mt-auto" variant="outline" asChild>
-                                        <a href="mailto:contact@sameerreddy.in?subject=Starter Plan Inquiry">Get Started</a>
+                {/* Request Access Section */}
+                <section id="access" className="py-20 container mx-auto px-4">
+                    <motion.div {...fadeInUp} className="max-w-3xl mx-auto">
+                        <Card className="border-none shadow-xl bg-gradient-to-br from-primary/5 via-background to-background overflow-hidden">
+                            <CardContent className="p-8 md:p-12 text-center space-y-6">
+                                <div className="mx-auto p-4 bg-primary/10 rounded-2xl w-fit text-primary">
+                                    <Mail className="h-8 w-8" />
+                                </div>
+                                <div className="space-y-3">
+                                    <h2 className="text-3xl font-bold tracking-tight">Request Access</h2>
+                                    <p className="text-muted-foreground text-lg max-w-xl mx-auto leading-relaxed">
+                                        CampusGate is an independent project built and maintained by a single developer.
+                                        It isn't open for public sign-up. If you'd like access for your institution,
+                                        get in touch and I'll set up an account for you.
+                                    </p>
+                                </div>
+                                <div className="flex flex-col sm:flex-row justify-center gap-4 pt-2">
+                                    <Button size="lg" className="h-12 px-8 rounded-full shadow-lg hover:shadow-xl transition-all" asChild>
+                                        <a href="mailto:contact@sameerreddy.in?subject=CampusGate Access Request">
+                                            <Mail className="mr-2 h-5 w-5" />
+                                            contact@sameerreddy.in
+                                        </a>
                                     </Button>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-                        <motion.div variants={staggerItem}>
-                            <Card className="flex flex-col h-full border-primary shadow-lg scale-105 relative">
-                                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-full">MOST POPULAR</div>
-                                <CardContent className="pt-8 flex-1 space-y-6">
-                                    <div>
-                                        <h3 className="font-bold text-xl">Institution</h3>
-                                        <div className="text-3xl font-bold mt-2">$499<span className="text-base font-normal text-muted-foreground">/mo</span></div>
-                                        <p className="text-sm text-muted-foreground mt-2">For colleges & universities</p>
-                                    </div>
-                                    <ul className="space-y-3 text-sm">
-                                        <li className="flex items-center gap-2">✓ Unlimited Students</li>
-                                        <li className="flex items-center gap-2">✓ Advanced Analytics</li>
-                                        <li className="flex items-center gap-2">✓ Parent SMS Alerts</li>
-                                        <li className="flex items-center gap-2">✓ Priority Support</li>
-                                    </ul>
-                                    <Button className="w-full mt-auto" asChild>
-                                        <a href="mailto:contact@sameerreddy.in?subject=Institution Plan Inquiry">Contact Sales</a>
-                                    </Button>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-                        <motion.div variants={staggerItem}>
-                            <Card className="flex flex-col h-full">
-                                <CardContent className="pt-8 flex-1 space-y-6">
-                                    <div>
-                                        <h3 className="font-bold text-xl">Enterprise</h3>
-                                        <div className="text-3xl font-bold mt-2">Custom</div>
-                                        <p className="text-sm text-muted-foreground mt-2">For multi-campus groups</p>
-                                    </div>
-                                    <ul className="space-y-3 text-sm">
-                                        <li className="flex items-center gap-2">✓ Multi-Tenant Support</li>
-                                        <li className="flex items-center gap-2">✓ Custom Integrations</li>
-                                        <li className="flex items-center gap-2">✓ Dedicated Account Manager</li>
-                                        <li className="flex items-center gap-2">✓ On-Premise Deployment</li>
-                                    </ul>
-                                    <Button className="w-full mt-auto" variant="outline" asChild>
-                                        <a href="mailto:contact@sameerreddy.in?subject=Enterprise Plan Inquiry">Talk to Us</a>
-                                    </Button>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
+                                </div>
+                                <p className="text-xs text-muted-foreground pt-2">
+                                    Existing users can sign in from the Login page.
+                                </p>
+                            </CardContent>
+                        </Card>
                     </motion.div>
                 </section>
 
@@ -364,7 +320,7 @@ export default function LandingPage() {
                 <section id="contact" className="py-20 bg-primary text-primary-foreground">
                     <motion.div {...fadeInUp} className="container mx-auto px-4 text-center space-y-6">
                         <h2 className="text-3xl md:text-4xl font-bold">Ready to modernize your campus?</h2>
-                        <p className="text-lg opacity-90 max-w-2xl mx-auto">Join thousands of students and administrators using CampusGate.</p>
+                        <p className="text-lg opacity-90 max-w-2xl mx-auto">Sign in to your account, or reach out to request access for your institution.</p>
                         <div className="flex flex-col sm:flex-row justify-center gap-4 mt-8">
                             <Link to="/login">
                                 <Button size="lg" variant="secondary" className="h-12 px-8 font-bold shadow-lg text-primary">
@@ -395,7 +351,7 @@ export default function LandingPage() {
                         <h4 className="font-semibold text-foreground mb-4">Product</h4>
                         <ul className="space-y-2 text-sm">
                             <li><a href="#features" className="hover:text-primary transition-colors">Features</a></li>
-                            <li><a href="#pricing" className="hover:text-primary transition-colors">Pricing</a></li>
+                            <li><a href="#access" className="hover:text-primary transition-colors">Request Access</a></li>
                             <li><a href="#security" className="hover:text-primary transition-colors">Security</a></li>
                         </ul>
                     </div>
