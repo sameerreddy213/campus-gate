@@ -148,6 +148,7 @@ export function DashboardLayout() {
     parent: "/parent",
     watchman: "/watchman",
     "college-admin": "/college-admin/requests",
+    "dev-admin": "/dev-admin",
   };
 
   const handleNotificationClick = async (notif: any) => {

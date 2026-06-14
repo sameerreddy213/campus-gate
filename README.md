@@ -127,10 +127,20 @@ CI/CD is handled by **[.github/workflows/main_campus-gate-app.yml](.github/workf
 It runs as a single job (no slow build-artifact round-trip) for fast deploys.
 
 **Required App Service settings** (Configuration → Environment variables):
-- `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRE`, and `NODE_ENV=production`
-- `SCM_DO_BUILD_DURING_DEPLOYMENT=false` (the workflow already builds; the package ships ready to run)
+- `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRE`
+- `NODE_ENV=production` — recommended (enables secure cookies and hides server error details). The UI no longer depends on it: the server serves `client/dist` whenever that build is present.
 
-The server serves the built client from `client/dist` when `NODE_ENV=production`. The app is also deployable to Vercel via [vercel.json](vercel.json) (`api/index.js` is the serverless entry).
+Azure's server-side build is disabled via the committed [.deployment](.deployment) file (`SCM_DO_BUILD_DURING_DEPLOYMENT=false`), so the pre-built, pruned package from CI ships as-is. The app is also deployable to Vercel via [vercel.json](vercel.json) (`api/index.js` is the serverless entry).
+
+### Environment variables reference
+| Var | Where | Purpose |
+| --- | --- | --- |
+| `MONGO_URI` | server | MongoDB connection string |
+| `JWT_SECRET` | server | JWT signing secret |
+| `JWT_EXPIRE` | server | Token lifetime (e.g. `30d`) |
+| `NODE_ENV` | server | `production` in deployment |
+| `EXPOSE_RESET_TOKEN` | server | **Local testing only** — set to `true` to return password-reset tokens in the API response. Never set in production. |
+| `DEV_ADMIN_EMAIL` / `DEV_ADMIN_PASSWORD` | server | Optional, used by `scripts/setDevAdmin.js` |
 
 ---
 

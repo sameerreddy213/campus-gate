@@ -21,7 +21,7 @@ exports.getDashboardStats = asyncHandler(async (req, res, next) => {
 
     const activeRequest = await OutingRequest.findOne({
         studentId: student._id,
-        status: { $nin: ['returned', 'rejected', 'parent-declined', 'expired'] }
+        status: { $nin: ['returned', 'rejected', 'parent-declined', 'expired', 'cancelled'] }
     });
 
     const requestHistory = await OutingRequest.find({ studentId: student._id })
@@ -76,7 +76,7 @@ exports.raiseRequest = asyncHandler(async (req, res, next) => {
     // Check for existing active request
     const existingRequest = await OutingRequest.findOne({
         studentId: student._id,
-        status: { $nin: ['returned', 'rejected', 'parent-declined', 'expired'] }
+        status: { $nin: ['returned', 'rejected', 'parent-declined', 'expired', 'cancelled'] }
     });
 
     if (existingRequest) {

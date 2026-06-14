@@ -90,19 +90,21 @@ app.get('/api', (req, res) => {
     res.json({ message: 'CampusGate API is running at /api' });
 });
 
-// Serve frontend in production
-if (process.env.NODE_ENV === 'production') {
-    const path = require('path');
-    // Serve static files from client/dist
-    app.use(express.static(path.join(__dirname, '../client/dist')));
+// Serve the built frontend whenever it exists (no dependency on NODE_ENV, so a
+// missing env var can never silently blank the site). In local dev the client
+// runs separately on Vite, so client/dist is absent and this is skipped.
+const path = require('path');
+const fs = require('fs');
+const clientDist = path.join(__dirname, '../client/dist');
+if (fs.existsSync(path.join(clientDist, 'index.html'))) {
+    app.use(express.static(clientDist));
 
-    // Handle SPA routing: serve index.html for any unknown non-API route
+    // SPA fallback: serve index.html for any unknown non-API route
     app.get('*', (req, res, next) => {
-        // If request is for API, don't serve index.html, let 404 handler catch it
         if (req.url.startsWith('/api')) {
             return next();
         }
-        res.sendFile(path.resolve(__dirname, '../client/dist', 'index.html'));
+        res.sendFile(path.join(clientDist, 'index.html'));
     });
 }
 

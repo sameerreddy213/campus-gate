@@ -145,8 +145,10 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
     await logAudit(req, 'auth.forgot_password', { userId: user._id });
 
     const payload = { ...genericResponse };
-    if (process.env.NODE_ENV !== 'production') {
-        payload.resetToken = resetToken; // dev convenience only
+    // Fail-closed: only expose the token when explicitly opted in (local testing).
+    // Never gate a secret on the mere ABSENCE of NODE_ENV.
+    if (process.env.EXPOSE_RESET_TOKEN === 'true') {
+        payload.resetToken = resetToken;
     }
     res.status(200).json(payload);
 });

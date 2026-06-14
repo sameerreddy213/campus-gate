@@ -1,0 +1,6 @@
+[config]
+# The GitHub Actions workflow already installs deps and builds the client, then
+# ships a pruned, ready-to-run package. Disable Azure's server-side Oryx build so
+# it doesn't reinstall dev deps or try to rebuild the (intentionally stripped)
+# client source.
+SCM_DO_BUILD_DURING_DEPLOYMENT=false

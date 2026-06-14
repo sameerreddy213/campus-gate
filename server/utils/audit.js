@@ -14,7 +14,9 @@ const logAudit = async (req, action, details = {}) => {
             userId: req.user ? req.user.id : undefined,
             action,
             details,
-            ip: req.headers['x-forwarded-for'] || req.ip,
+            // req.ip honours the configured 'trust proxy' hop; prefer it over the
+            // raw, client-spoofable X-Forwarded-For header.
+            ip: req.ip,
             collegeId: req.user ? req.user.collegeId : undefined
         });
     } catch (err) {
