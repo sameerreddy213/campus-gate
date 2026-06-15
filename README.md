@@ -42,6 +42,7 @@
 - Manage colleges and college admins.
 - Platform-wide **analytics** (status breakdown, per-college volume, monthly trend).
 - Global **audit log**.
+- **Security & Logs** dashboard — live threat telemetry (failed logins, unauthorized/forbidden access, rate-limit blocks, OTP brute-force, blocked injection attempts), top source IPs, a 14-day event timeline, and a platform-stats snapshot. Exportable to CSV.
 
 **Platform**
 - JWT auth, role-based access control, multi-tenant isolation by college.
@@ -139,6 +140,7 @@ Azure's server-side build is disabled via the committed [.deployment](.deploymen
 | `JWT_SECRET` | server | JWT signing secret |
 | `JWT_EXPIRE` | server | Token lifetime (e.g. `30d`) |
 | `NODE_ENV` | server | `production` in deployment |
+| `CORS_ORIGINS` | server | Optional. Comma-separated allowlist of cross-origin sites permitted to call the API in production (e.g. `https://app.example.com,https://admin.example.com`). Same-origin requests are always allowed; in non-production all origins are allowed. |
 | `EXPOSE_RESET_TOKEN` | server | **Local testing only** — set to `true` to return password-reset tokens in the API response. Never set in production. |
 | `DEV_ADMIN_EMAIL` / `DEV_ADMIN_PASSWORD` | server | Optional, used by `scripts/setDevAdmin.js` |
 

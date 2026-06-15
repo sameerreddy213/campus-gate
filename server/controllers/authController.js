@@ -6,6 +6,7 @@ const Student = require('../models/Student');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
 const { logAudit } = require('../utils/audit');
+const { logSecurityEvent } = require('../utils/security');
 
 // Helper to get full user profile with role-specific data
 const getUserProfile = async (user) => {
@@ -98,6 +99,9 @@ exports.login = asyncHandler(async (req, res, next) => {
     const user = await User.findOne({ email }).select('+password');
 
     if (!user) {
+        // Log the failed attempt for threat monitoring (no account enumeration:
+        // the client still gets the same generic 'Invalid credentials').
+        logSecurityEvent(req, 'login_failed', { identifier: email, details: { reason: 'no_such_user' } });
         return next(new ErrorResponse('Invalid credentials', 401));
     }
 
@@ -105,6 +109,7 @@ exports.login = asyncHandler(async (req, res, next) => {
     const isMatch = await user.matchPassword(password);
 
     if (!isMatch) {
+        logSecurityEvent(req, 'login_failed', { identifier: email, details: { reason: 'bad_password' } });
         return next(new ErrorResponse('Invalid credentials', 401));
     }
 
@@ -246,6 +251,7 @@ exports.verifyOtp = asyncHandler(async (req, res, next) => {
     }).sort({ createdAt: -1 });
 
     if (!otpRecord || otpRecord.otp !== otp) {
+        logSecurityEvent(req, 'otp_failed', { identifier: phone });
         return next(new ErrorResponse('Invalid or expired OTP', 401));
     }
 

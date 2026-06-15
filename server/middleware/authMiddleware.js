@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('./errorMiddleware');
 const User = require('../models/User');
+const { logSecurityEvent } = require('../utils/security');
 
 // Protect routes
 exports.protect = asyncHandler(async (req, res, next) => {
@@ -15,6 +16,7 @@ exports.protect = asyncHandler(async (req, res, next) => {
     }
 
     if (!token) {
+        logSecurityEvent(req, 'unauthorized', { details: { reason: 'missing_token' } });
         return next(new ErrorResponse('Not authorized to access this route', 401));
     }
 
@@ -25,11 +27,14 @@ exports.protect = asyncHandler(async (req, res, next) => {
         req.user = await User.findById(decoded.id);
 
         if (!req.user) {
+            logSecurityEvent(req, 'unauthorized', { details: { reason: 'user_not_found' } });
             return next(new ErrorResponse('User not found', 404));
         }
 
         next();
     } catch (err) {
+        // Invalid/expired/tampered token — a common probing signal.
+        logSecurityEvent(req, 'unauthorized', { details: { reason: 'invalid_token' } });
         return next(new ErrorResponse('Not authorized to access this route', 401));
     }
 });
@@ -38,6 +43,11 @@ exports.protect = asyncHandler(async (req, res, next) => {
 exports.authorize = (...roles) => {
     return (req, res, next) => {
         if (!roles.includes(req.user.role)) {
+            // Authenticated but reaching for a route above their role — worth flagging.
+            logSecurityEvent(req, 'forbidden', {
+                identifier: req.user.email,
+                details: { role: req.user.role, required: roles }
+            });
             return next(
                 new ErrorResponse(
                     `User role ${req.user.role} is not authorized to access this route`,
