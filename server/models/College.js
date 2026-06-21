@@ -21,6 +21,11 @@ const collegeSchema = new mongoose.Schema({
         required: [true, 'Please add a city'],
         trim: true
     },
+    address: {
+        type: String,
+        trim: true,
+        maxlength: [200, 'Address can not be more than 200 characters']
+    },
     status: {
         type: String,
         enum: ['active', 'suspended'],
@@ -28,6 +33,12 @@ const collegeSchema = new mongoose.Schema({
     },
     config: {
         enableGateSecurity: {
+            type: Boolean,
+            default: true
+        },
+        // When false, the warden-approval step is skipped: a request is auto-approved
+        // as soon as the parent approves (or immediately, for parent-skipped purposes).
+        requireWardenApproval: {
             type: Boolean,
             default: true
         }

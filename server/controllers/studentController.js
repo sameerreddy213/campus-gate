@@ -1,13 +1,27 @@
 const Student = require('../models/Student');
 const OutingRequest = require('../models/OutingRequest');
+const College = require('../models/College');
 const { createNotification, notifyParent } = require('./notificationController');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
 const { expireStaleRequests } = require('../utils/expiry');
+const { signGatePass } = require('../utils/gatePass');
 
 // Helper to get student profile from user ID
 const getStudentProfile = async (userId) => {
     return await Student.findOne({ userId });
+};
+
+// Attach a signed gate-pass token to a request when (and only when) it is in an
+// actionable gate state. The student's QR encodes this token; the watchman
+// verifies it server-side before marking out/returned.
+const withGatePass = (request) => {
+    if (!request) return request;
+    const obj = typeof request.toObject === 'function' ? request.toObject() : { ...request };
+    if (['approved', 'out'].includes(obj.status)) {
+        obj.gatePass = signGatePass(String(obj._id));
+    }
+    return obj;
 };
 
 // @desc    Get Student Dashboard
@@ -31,7 +45,7 @@ exports.getDashboardStats = asyncHandler(async (req, res, next) => {
     res.status(200).json({
         success: true,
         data: {
-            activeRequest,
+            activeRequest: withGatePass(activeRequest),
             recentActivity: requestHistory
         }
     });
@@ -83,10 +97,16 @@ exports.raiseRequest = asyncHandler(async (req, res, next) => {
         return next(new ErrorResponse('You already have an active request', 400));
     }
 
-    // Conditional Approval Logic
+    // Conditional Approval Logic.
+    // - Mess/Exam purposes skip the parent step and go straight to the warden stage.
+    // - If the college has turned OFF warden approval, the warden stage is skipped
+    //   too, so such requests are auto-approved on creation.
+    const college = await College.findById(req.user.collegeId).select('config');
+    const requireWardenApproval = college?.config?.requireWardenApproval !== false; // default true
+
     let initialStatus = 'pending-parent';
     if (['Mess', 'Exam'].includes(purpose)) {
-        initialStatus = 'pending-warden';
+        initialStatus = requireWardenApproval ? 'pending-warden' : 'approved';
     }
 
     const request = await OutingRequest.create({
@@ -108,12 +128,20 @@ exports.raiseRequest = asyncHandler(async (req, res, next) => {
         request._id
     );
 
-    // Notify Warden if Auto-Forwarded (e.g. Mess/Exam)
     if (initialStatus === 'pending-warden' && student.wardenId) {
+        // Forwarded to the warden for approval.
         await createNotification(
             student.wardenId,
             `New request from ${req.user.name} (Auto-Approved by Parent rule)`,
             'info',
+            request._id
+        );
+    } else if (initialStatus === 'approved') {
+        // Warden approval is disabled for this college — the pass is ready immediately.
+        await createNotification(
+            req.user.id,
+            'Your outing request is approved and your gate pass is ready.',
+            'success',
             request._id
         );
     }
@@ -188,7 +216,7 @@ exports.getMyRequests = asyncHandler(async (req, res, next) => {
 
     res.status(200).json({
         success: true,
-        data: requests
+        data: requests.map(withGatePass)
     });
 });
 

@@ -15,7 +15,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from 
 import {
   Building2, Users, GraduationCap, Shield, BarChart3, ClipboardList,
   Home, UserPlus, FileText, Upload, History, LogOut, Bell, Menu,
-  ChevronLeft, User, Phone, Calendar, CheckSquare, Lock, ScrollText
+  ChevronLeft, User, Phone, Calendar, CheckSquare, Lock, ScrollText, ShieldAlert
 } from "lucide-react";
 import type { UserRole } from "@/types";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
@@ -37,6 +37,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: "Add College", path: "/dev-admin/add-college", icon: UserPlus },
     { label: "Add Admin", path: "/dev-admin/add-admin", icon: Shield },
     { label: "Analytics", path: "/dev-admin/analytics", icon: BarChart3 },
+    { label: "Security & Logs", path: "/dev-admin/security", icon: ShieldAlert },
     { label: "Audit Logs", path: "/dev-admin/audit-logs", icon: ScrollText },
   ],
   "college-admin": [

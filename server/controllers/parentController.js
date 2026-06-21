@@ -1,5 +1,6 @@
 const OutingRequest = require('../models/OutingRequest');
 const Student = require('../models/Student');
+const College = require('../models/College');
 const { createNotification } = require('./notificationController');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
@@ -75,9 +76,14 @@ exports.updateRequestStatus = asyncHandler(async (req, res, next) => {
     request.status = status;
     request.parentDecisionAt = Date.now();
 
-    // If approved by parent, it moves to 'pending-warden'
+    // On parent approval, advance to the warden stage — unless the college has
+    // disabled warden approval, in which case the request is auto-approved.
+    let autoApproved = false;
     if (status === 'parent-approved') {
-        request.status = 'pending-warden';
+        const college = await College.findById(request.collegeId).select('config');
+        const requireWardenApproval = college?.config?.requireWardenApproval !== false; // default true
+        request.status = requireWardenApproval ? 'pending-warden' : 'approved';
+        autoApproved = !requireWardenApproval;
     }
 
     await request.save();
@@ -85,15 +91,16 @@ exports.updateRequestStatus = asyncHandler(async (req, res, next) => {
     await logAudit(req, `request.${status}`, { requestId: request._id });
 
     // Notify Student
-    await createNotification(
-        request.studentId.userId,
-        `Your request has been ${status === 'parent-approved' ? 'approved' : 'declined'} by your parent`,
-        status === 'parent-approved' ? 'success' : 'error',
-        request._id
-    );
+    if (status === 'parent-declined') {
+        await createNotification(request.studentId.userId, 'Your request has been declined by your parent', 'error', request._id);
+    } else if (autoApproved) {
+        await createNotification(request.studentId.userId, 'Your outing request is approved and your gate pass is ready.', 'success', request._id);
+    } else {
+        await createNotification(request.studentId.userId, 'Your request was approved by your parent and sent to the warden', 'success', request._id);
+    }
 
-    // Notify Warden if Approved
-    if (status === 'parent-approved') {
+    // Notify the warden only when their approval is actually still required.
+    if (status === 'parent-approved' && !autoApproved) {
         const student = await Student.findById(request.studentId._id).populate('userId', 'name');
         if (student && student.wardenId) {
             await createNotification(

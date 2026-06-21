@@ -20,7 +20,6 @@ router.use(tenant);
 router.get('/dashboard', getDashboardStats);
 router.get('/students', getAssignedStudents);
 router.get('/requests', getRequests);
-router.get('/requests', getRequests);
 router.get('/history', getHistory);
 router.get('/settings', require('../controllers/wardenController').getSettings);
 

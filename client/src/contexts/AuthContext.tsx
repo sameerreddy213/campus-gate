@@ -8,6 +8,7 @@ interface AuthContextType {
   login: (data: any) => Promise<User>;
   verifyOtp: (phone: string, otp: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => { throw new Error("AuthProvider not mounted"); },
   verifyOtp: async () => { },
   logout: () => { },
+  refreshUser: async () => { },
   isAuthenticated: false,
   isLoading: true,
 });
@@ -91,8 +93,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     toast.success('Logged out successfully');
   };
 
+  // Re-fetch the current user (e.g. after a profile edit) so the UI reflects changes.
+  const refreshUser = async () => {
+    try {
+      const res = await api.get('/auth/me');
+      setUser(res.data.data);
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, verifyOtp, logout, isAuthenticated: !!user, isLoading }}>
+    <AuthContext.Provider value={{ user, login, verifyOtp, logout, refreshUser, isAuthenticated: !!user, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,10 +1,55 @@
 const OutingRequest = require('../models/OutingRequest');
 const Student = require('../models/Student');
+const College = require('../models/College');
 const { createNotification, notifyParent } = require('./notificationController');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
 const { logAudit } = require('../utils/audit');
 const { expireStaleRequests } = require('../utils/expiry');
+const { verifyGatePass } = require('../utils/gatePass');
+
+// Reject watchman gate actions when the college has gate security turned OFF
+// (in that mode the warden marks students out/returned, not the watchman).
+const assertGateSecurityEnabled = async (collegeId) => {
+    const college = await College.findById(collegeId).select('config');
+    if (!college?.config?.enableGateSecurity) {
+        throw new ErrorResponse('Gate Security is disabled for this college. The warden handles out/return.', 403);
+    }
+};
+
+// @desc    Verify a scanned QR gate pass and return the request to act on
+// @route   POST /api/watchman/verify
+// @access  Private (Watchman)
+exports.verifyPass = asyncHandler(async (req, res, next) => {
+    const { token } = req.body;
+
+    const result = verifyGatePass(token);
+    if (!result.valid) {
+        return next(new ErrorResponse(`Invalid gate pass (${result.reason})`, 400));
+    }
+
+    const request = await OutingRequest.findById(result.requestId)
+        .populate({ path: 'studentId', populate: { path: 'userId', select: 'name' } });
+
+    if (!request) {
+        return next(new ErrorResponse('Gate pass does not match any request', 404));
+    }
+    // Same-college only — a watchman can never act on another tenant's pass.
+    if (request.collegeId.toString() !== req.collegeId.toString()) {
+        return next(new ErrorResponse('This pass belongs to another college', 403));
+    }
+    if (!['approved', 'out'].includes(request.status)) {
+        return next(new ErrorResponse(`Pass is not actionable (status: ${request.status})`, 400));
+    }
+
+    const reqObj = request.toObject();
+    reqObj.studentName = request.studentId?.userId?.name || 'Unknown';
+    reqObj.studentRoll = request.studentId?.rollNumber || 'Unknown';
+
+    await logAudit(req, 'gatepass.verify', { requestId: request._id, status: request.status });
+
+    res.status(200).json({ success: true, data: reqObj });
+});
 
 // @desc    Get Watchman Dashboard Stats
 // @route   GET /api/watchman/dashboard
@@ -112,6 +157,8 @@ exports.markStudentOut = asyncHandler(async (req, res, next) => {
         return next(new ErrorResponse('Not authorized', 403));
     }
 
+    await assertGateSecurityEnabled(req.collegeId);
+
     if (request.status !== 'approved') {
         return next(new ErrorResponse('Request must be approved before marking out', 400));
     }
@@ -148,6 +195,8 @@ exports.markStudentReturned = asyncHandler(async (req, res, next) => {
     if (request.collegeId.toString() !== req.collegeId.toString()) {
         return next(new ErrorResponse('Not authorized', 403));
     }
+
+    await assertGateSecurityEnabled(req.collegeId);
 
     if (request.status !== 'out') {
         return next(new ErrorResponse('Student must be out before marking returned', 400));

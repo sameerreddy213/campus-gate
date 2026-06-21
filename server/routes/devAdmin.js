@@ -6,6 +6,7 @@ const {
     getGlobalAnalytics,
     getAnalyticsBreakdown,
     getAuditLogs,
+    getSecurityOverview,
     deleteCollege,
     updateCollege,
     toggleCollegeStatus
@@ -30,6 +31,7 @@ router.post('/create-admin', createCollegeAdmin);
 router.get('/analytics', getGlobalAnalytics);
 router.get('/analytics/breakdown', getAnalyticsBreakdown);
 router.get('/audit-logs', getAuditLogs);
+router.get('/security', getSecurityOverview);
 router.put('/colleges/:id/status', toggleCollegeStatus);
 
 module.exports = router;

@@ -19,6 +19,7 @@ import CollegesPage from "./pages/dev-admin/Colleges";
 import AddCollegePage from "./pages/dev-admin/AddCollege";
 import AddAdminPage from "./pages/dev-admin/AddAdmin";
 import AnalyticsPage from "./pages/dev-admin/Analytics";
+import SecurityPage from "./pages/dev-admin/Security";
 
 // College Admin
 import CollegeAdminDashboard from "./pages/college-admin/Dashboard";
@@ -84,6 +85,7 @@ const App = () => (
               <Route path="/dev-admin/add-college" element={<AddCollegePage />} />
               <Route path="/dev-admin/add-admin" element={<AddAdminPage />} />
               <Route path="/dev-admin/analytics" element={<AnalyticsPage />} />
+              <Route path="/dev-admin/security" element={<SecurityPage />} />
               <Route path="/dev-admin/audit-logs" element={<AuditLogsPage />} />
             </Route>
             <Route element={<DashboardLayout />}>

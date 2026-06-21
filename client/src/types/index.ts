@@ -14,6 +14,7 @@ export type OutingStatus =
 
 export interface User {
   id: string;
+  _id?: string;
   name: string;
   email: string;
   role: UserRole;
@@ -28,6 +29,7 @@ export interface College {
   name: string;
   code: string;
   city: string;
+  address?: string;
   status: "active" | "suspended";
   adminId: string;
   adminName: string;
@@ -38,6 +40,7 @@ export interface College {
 
 export interface Student {
   id: string;
+  _id?: string;
   name: string;
   email: string;
   phone: string;
@@ -82,6 +85,8 @@ export interface OutingRequest {
   outAt?: string;
   returnedAt?: string;
   createdAt: string;
+  /** Signed, expiring token the gate QR encodes; verified server-side on scan. */
+  gatePass?: string;
 }
 
 export interface AuditLog {
@@ -92,6 +97,55 @@ export interface AuditLog {
   userId?: { _id: string; name: string; email: string; role: string } | string | null;
   collegeId?: { _id: string; name: string; code: string } | string | null;
   createdAt: string;
+}
+
+export type SecurityEventType =
+  | "login_failed"
+  | "otp_failed"
+  | "unauthorized"
+  | "forbidden"
+  | "rate_limited"
+  | "injection_blocked"
+  | "other";
+
+export interface SecurityEvent {
+  _id: string;
+  type: SecurityEventType;
+  severity: "low" | "medium" | "high";
+  ip?: string;
+  identifier?: string;
+  method?: string;
+  path?: string;
+  userAgent?: string;
+  userId?: { _id: string; name: string; email: string; role: string } | string | null;
+  details?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface SecurityTopIp {
+  ip: string;
+  count: number;
+  types: SecurityEventType[];
+  highSeverity: number;
+  lastSeen: string;
+}
+
+export interface SecurityTimelinePoint {
+  date: string;
+  total: number;
+  [type: string]: number | string;
+}
+
+export interface SecurityOverview {
+  summary: {
+    last24h: { byType: Partial<Record<SecurityEventType, number>>; total: number };
+    last7d: { byType: Partial<Record<SecurityEventType, number>>; total: number };
+    uniqueIps7d: number;
+  };
+  timeline: SecurityTimelinePoint[];
+  topIps: SecurityTopIp[];
+  recent: SecurityEvent[];
+  platform: { totalUsers: number; colleges: number; totalRequests: number; requestsToday: number };
 }
 
 export interface StatCardData {

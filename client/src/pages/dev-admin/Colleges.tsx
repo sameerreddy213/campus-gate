@@ -63,15 +63,14 @@ export default function CollegesPage() {
       });
     }
     setConfirmDialog({ open: false });
-    setConfirmDialog({ open: false });
   };
 
   // Edit Logic
   const [editDialog, setEditDialog] = useState<{ open: boolean; college?: College }>({ open: false });
-  const [editForm, setEditForm] = useState({ name: "", code: "", city: "" });
+  const [editForm, setEditForm] = useState({ name: "", code: "", city: "", address: "" });
 
   const handleEditClick = (college: College) => {
-    setEditForm({ name: college.name, code: college.code, city: college.city });
+    setEditForm({ name: college.name, code: college.code, city: college.city, address: college.address || "" });
     setEditDialog({ open: true, college });
   };
 
@@ -149,7 +148,11 @@ export default function CollegesPage() {
         open={confirmDialog.open}
         onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}
         title={confirmDialog.action === "delete" ? "Delete College?" : (confirmDialog.college?.status === "active" ? "Suspend College?" : "Activate College?")}
-        description={confirmDialog.action === "delete" ? `Are you sure you want to delete ${confirmDialog.college?.name}? This action cannot be undone.` : `Backend implementation for toggling ${confirmDialog.college?.name} is pending.`}
+        description={confirmDialog.action === "delete"
+          ? `Are you sure you want to delete ${confirmDialog.college?.name}? This action cannot be undone.`
+          : (confirmDialog.college?.status === "active"
+            ? `Suspend ${confirmDialog.college?.name}? Its users will be blocked from logging in until reactivated.`
+            : `Activate ${confirmDialog.college?.name}? Its users will be able to log in again.`)}
         confirmLabel={confirmDialog.action === "delete" ? "Delete" : (confirmDialog.college?.status === "active" ? "Suspend" : "Activate")}
         variant={confirmDialog.action === "delete" || confirmDialog.college?.status === "active" ? "destructive" : "default"}
         onConfirm={handleConfirmAction}
@@ -172,6 +175,10 @@ export default function CollegesPage() {
             <div className="grid gap-2">
               <Label htmlFor="city">City</Label>
               <Input id="city" value={editForm.city} onChange={e => setEditForm({ ...editForm, city: e.target.value })} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="address">Address (optional)</Label>
+              <Input id="address" value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} />
             </div>
           </div>
           <DialogFooter>

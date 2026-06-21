@@ -149,8 +149,8 @@ export default function Documentation() {
                                         <AccordionItem value="view-history">
                                             <AccordionTrigger>Viewing Student History</AccordionTrigger>
                                             <AccordionContent className="space-y-2 text-muted-foreground">
-                                                <p>Access the <strong>"Students"</strong> tab to view a list of all assigned students.</p>
-                                                <p>Click on a student profile to see their complete outing history and contact details.</p>
+                                                <p>Access the <strong>"Students"</strong> tab to view a list of all assigned students, including their roll number, department, year, and parent contact.</p>
+                                                <p>Use the <strong>"History"</strong> tab to review past outing requests you have acted on.</p>
                                             </AccordionContent>
                                         </AccordionItem>
                                     </Accordion>
@@ -206,8 +206,8 @@ export default function Documentation() {
                                         <AccordionItem value="reports">
                                             <AccordionTrigger>Reports & Settings</AccordionTrigger>
                                             <AccordionContent className="space-y-2 text-muted-foreground">
-                                                <p>Generate reports on outing trends, late arrivals, and violations.</p>
-                                                <p>Configure college-specific rules like curfew times and maximum outing limits.</p>
+                                                <p>Generate and export CSV reports of outing requests, filtered by date range and status.</p>
+                                                <p>Toggle <strong>Gate Security</strong> in Settings to switch student out/return between the watchman and the warden.</p>
                                             </AccordionContent>
                                         </AccordionItem>
                                     </Accordion>
@@ -230,9 +230,9 @@ export default function Documentation() {
                                         <AccordionItem value="multi-tenancy">
                                             <AccordionTrigger>College Onboarding</AccordionTrigger>
                                             <AccordionContent className="space-y-2 text-muted-foreground">
-                                                <p>Create and manage tenant (college) accounts.</p>
+                                                <p>Create, suspend, and manage tenant (college) accounts.</p>
                                                 <p>Assign initial college admin credentials.</p>
-                                                <p>Monitor system usage and subscription status.</p>
+                                                <p>Monitor platform-wide analytics, the global audit log, and the Security &amp; Logs dashboard (failed logins, blocked requests, suspicious IPs).</p>
                                             </AccordionContent>
                                         </AccordionItem>
                                     </Accordion>

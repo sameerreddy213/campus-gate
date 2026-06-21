@@ -198,7 +198,7 @@ function TimedQRSection({ request }: { request: OutingRequest }) {
       <div className="flex flex-col items-center gap-2 p-4 bg-white rounded-lg border shadow-sm mx-auto md:mx-0 w-full max-w-[200px]">
         <div className="bg-white p-2 rounded w-full">
           <QRCode
-            value={request.id}
+            value={request.gatePass || request.id}
             size={128}
             style={{ height: "auto", maxWidth: "100%", width: "100%" }}
             viewBox={`0 0 256 256`}
@@ -216,7 +216,7 @@ function TimedQRSection({ request }: { request: OutingRequest }) {
         <>
           <div className="bg-white p-2 rounded animate-in fade-in zoom-in w-full max-w-[140px] aspect-square flex items-center justify-center">
             <QRCode
-              value={request.id}
+              value={request.gatePass || request.id}
               size={120}
               style={{ height: "auto", maxWidth: "100%", width: "100%" }}
               viewBox={`0 0 256 256`}

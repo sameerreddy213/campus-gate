@@ -27,6 +27,8 @@ export default function WatchmanDashboard() {
     const [outRequests, setOutRequests] = useState<OutingRequest[]>([]);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(false);
+    const [scannerOpen, setScannerOpen] = useState(false);
+    const [verifiedRequest, setVerifiedRequest] = useState<OutingRequest | null>(null);
 
     const fetchStats = async () => {
         try {
@@ -99,6 +101,26 @@ export default function WatchmanDashboard() {
         }
     };
 
+    // Verify a scanned QR gate pass against the server (validates the signed,
+    // expiring token), then surface the matched request in the verification card.
+    const handleVerifyScan = async (token: string) => {
+        try {
+            const res = await apiClient.post('/watchman/verify', { token });
+            const data = res.data.data;
+            setVerifiedRequest({ ...data, id: data._id });
+            setSearch("");
+        } catch (error: any) {
+            toast({
+                title: "Invalid pass",
+                description: error.response?.data?.message || "Could not verify this QR code",
+                variant: "destructive",
+            });
+            setVerifiedRequest(null);
+        } finally {
+            setScannerOpen(false);
+        }
+    };
+
     const filterRequests = (requests: OutingRequest[]) => {
         const query = search.toLowerCase();
         return requests.filter(r =>
@@ -108,7 +130,11 @@ export default function WatchmanDashboard() {
         );
     };
 
-    const scannedRequest = [...approvedRequests, ...outRequests].find(r => r.id === search || r.id.slice(-6).toUpperCase() === search.toUpperCase());
+    const localMatch = search
+        ? [...approvedRequests, ...outRequests].find(r => r.id === search || r.id.slice(-6).toUpperCase() === search.toUpperCase())
+        : undefined;
+    // A server-verified QR scan takes precedence over a typed/manual match.
+    const scannedRequest = verifiedRequest || localMatch;
 
     return (
         <div className="space-y-6">
@@ -160,6 +186,7 @@ export default function WatchmanDashboard() {
                                             onClick={() => {
                                                 handleMarkOut(scannedRequest.id, scannedRequest.studentName);
                                                 setSearch(""); // Clear after action
+                                                setVerifiedRequest(null);
                                             }}
                                             disabled={loading}
                                         >
@@ -174,6 +201,7 @@ export default function WatchmanDashboard() {
                                             onClick={() => {
                                                 handleMarkReturned(scannedRequest.id, scannedRequest.studentName);
                                                 setSearch(""); // Clear after action
+                                                setVerifiedRequest(null);
                                             }}
                                             disabled={loading}
                                         >
@@ -207,7 +235,7 @@ export default function WatchmanDashboard() {
                                 <X className="h-4 w-4" />
                             </Button>
                         </div>
-                        <Dialog>
+                        <Dialog open={scannerOpen} onOpenChange={setScannerOpen}>
                             <DialogTrigger asChild>
                                 <Button className="gap-2">
                                     <Search className="h-4 w-4" />
@@ -219,21 +247,17 @@ export default function WatchmanDashboard() {
                                     <DialogTitle>Scan Student QR Code</DialogTitle>
                                 </DialogHeader>
                                 <div className="aspect-square w-full overflow-hidden rounded-lg border bg-muted">
-                                    <Scanner
-                                        onScan={(result) => {
-                                            if (result && result.length > 0) {
-                                                const rawValue = result[0].rawValue;
-                                                // Extract ID if it's a URL or just use the value
-                                                // Assuming QR contains just the Request ID
-                                                setSearch(rawValue);
-                                                // Close dialog approach could vary, for now let's just set search
-                                                // and user can click outside. 
-                                                // Ideally we programmatically close, but basic functional first.
-                                                document.getElementById('close-scanner')?.click();
-                                            }
-                                        }}
-                                        onError={(error: any) => console.log(error?.message || error)}
-                                    />
+                                    {scannerOpen && (
+                                        <Scanner
+                                            onScan={(result) => {
+                                                if (result && result.length > 0) {
+                                                    // The QR carries a signed gate-pass token; verify it server-side.
+                                                    handleVerifyScan(result[0].rawValue);
+                                                }
+                                            }}
+                                            onError={(error: any) => console.log(error?.message || error)}
+                                        />
+                                    )}
                                 </div>
                             </DialogContent>
                         </Dialog>

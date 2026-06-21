@@ -17,7 +17,9 @@ const expireStaleRequests = async (collegeId) => {
     try {
         const cutoff = new Date(Date.now() - STALE_GRACE_MS);
         const filter = {
-            status: { $in: ['pending-parent', 'parent-approved', 'pending-warden'] },
+            // Pre-departure approval states only ('parent-approved' is transient and
+            // never persists — parent approval moves straight to 'pending-warden').
+            status: { $in: ['pending-parent', 'pending-warden'] },
             outDate: { $lt: cutoff }
         };
         if (collegeId) filter.collegeId = collegeId;

@@ -175,10 +175,23 @@ export default function StudentsPage() {
                 </TabsContent>
                 <TabsContent value="bulk">
                   <div className="mt-4 space-y-4">
-                    <div className="rounded-lg border-2 border-dashed border-muted p-8 text-center">
+                    <div
+                      className="rounded-lg border-2 border-dashed border-muted p-8 text-center transition-colors hover:border-primary/40"
+                      onDragOver={(e) => { e.preventDefault(); }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const dropped = e.dataTransfer.files?.[0];
+                        if (dropped && /\.csv$/i.test(dropped.name)) {
+                          setFile(dropped);
+                        } else if (dropped) {
+                          toast({ title: "Unsupported file", description: "Please drop a .csv file", variant: "destructive" });
+                        }
+                      }}
+                    >
                       <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
                       <p className="text-sm font-medium">Drag & drop CSV file here</p>
                       <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
+                      {file && <p className="text-xs text-primary mt-2 font-medium">{file.name}</p>}
                       <Input type="file" accept=".csv" className="mt-4" onChange={(e) => setFile(e.target.files?.[0] || null)} />
                       <Button variant="outline" size="sm" className="mt-3" onClick={handleCsvUpload} disabled={!file || loading}>{loading ? "Uploading..." : "Upload CSV"}</Button>
                     </div>
