@@ -10,7 +10,7 @@ import apiClient from "@/lib/api";
 
 export default function AddCollegePage() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", code: "", city: "" });
+  const [form, setForm] = useState({ name: "", code: "", city: "", address: "" });
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,6 +46,10 @@ export default function AddCollegePage() {
             <div className="space-y-2">
               <Label>City</Label>
               <Input required value={form.city} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} placeholder="e.g. Hyderabad" />
+            </div>
+            <div className="space-y-2">
+              <Label>Address (optional)</Label>
+              <Input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} placeholder="e.g. 12 College Rd, Madhapur" />
             </div>
             <div className="flex gap-2">
               <Button type="submit" disabled={loading}>{loading ? "Adding..." : "Add College"}</Button>

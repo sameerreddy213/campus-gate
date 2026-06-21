@@ -80,7 +80,7 @@ export default function LandingPage() {
                             transition={{ duration: 0.5 }}
                             className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-primary/10 text-primary hover:bg-primary/20"
                         >
-                            New: Parent Dashboard 2.0
+                            Multi-tenant · QR gate passes · Role-based access
                         </motion.div>
                         <motion.h1
                             initial={{ opacity: 0, y: 30 }}
@@ -125,10 +125,10 @@ export default function LandingPage() {
                             className="pt-12 grid grid-cols-2 md:grid-cols-4 gap-4 text-center opacity-80"
                         >
                             {[
-                                { label: "Students", value: "10k+" },
-                                { label: "Uptime", value: "99.9%" },
-                                { label: "Breaches", value: "0" },
-                                { label: "Support", value: "24/7" }
+                                { label: "Roles", value: "6" },
+                                { label: "Gate Pass", value: "QR" },
+                                { label: "Tenancy", value: "Multi" },
+                                { label: "Actions", value: "Audited" }
                             ].map((stat, index) => (
                                 <motion.div key={index} variants={staggerItem}>
                                     <div className="text-2xl font-bold text-foreground">{stat.value}</div>

@@ -51,7 +51,17 @@ const outingRequestSchema = new mongoose.Schema({
     parentDecisionAt: Date,
     wardenDecisionAt: Date,
     outAt: Date,
-    returnedAt: Date
+    returnedAt: Date,
+    // Set by the scheduler when a student is 'out' past their expected return.
+    overstay: {
+        type: Boolean,
+        default: false
+    },
+    // Guards against re-notifying about the same overstay every sweep.
+    overstayNotified: {
+        type: Boolean,
+        default: false
+    }
 }, {
     timestamps: true
 });

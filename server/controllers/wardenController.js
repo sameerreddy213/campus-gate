@@ -85,7 +85,9 @@ exports.getRequests = asyncHandler(async (req, res, next) => {
     };
 
     if (type === 'pending') {
-        query.status = { $in: ['pending-warden', 'parent-approved'] };
+        // Parent approval transitions straight to 'pending-warden', so that is the
+        // only state a warden ever sees as pending.
+        query.status = 'pending-warden';
     } else if (status) {
         query.status = status;
     }

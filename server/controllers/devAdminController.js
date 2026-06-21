@@ -12,8 +12,8 @@ const { logAudit } = require('../utils/audit');
 // @route   POST /api/dev-admin/colleges
 // @access  Private (Dev Admin)
 exports.createCollege = asyncHandler(async (req, res, next) => {
-    const { name, code, city } = req.body;
-    const college = await College.create({ name, code, city });
+    const { name, code, city, address } = req.body;
+    const college = await College.create({ name, code, city, address });
 
     await logAudit(req, 'college.create', { collegeId: college._id, name: college.name });
 
@@ -387,7 +387,7 @@ exports.toggleCollegeStatus = asyncHandler(async (req, res, next) => {
 // @route   PUT /api/dev-admin/colleges/:id
 // @access  Private (Dev Admin)
 exports.updateCollege = asyncHandler(async (req, res, next) => {
-    const { name, code, city, status } = req.body;
+    const { name, code, city, address, status } = req.body;
 
     let college = await College.findById(req.params.id);
 
@@ -399,6 +399,7 @@ exports.updateCollege = asyncHandler(async (req, res, next) => {
     if (name) college.name = name;
     if (code) college.code = code;
     if (city) college.city = city;
+    if (address !== undefined) college.address = address;
     if (status) college.status = status;
 
     await college.save();

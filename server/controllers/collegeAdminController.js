@@ -7,6 +7,7 @@ const AuditLog = require('../models/AuditLog');
 const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
 const { logAudit } = require('../utils/audit');
+const { ensureParentUser } = require('../utils/parents');
 
 // @desc    Get Dashboard Stats
 // @route   GET /api/college-admin/dashboard
@@ -139,10 +140,22 @@ exports.addWarden = asyncHandler(async (req, res, next) => {
 exports.getWardens = asyncHandler(async (req, res, next) => {
     const wardens = await User.find({ collegeId: req.collegeId, role: 'warden' });
 
-    const formattedWardens = wardens.map(w => ({
-        ...w.toObject(),
-        id: w._id
-    }));
+    // Real per-warden student count (source of truth is Student.wardenId), in one
+    // aggregate instead of a stale array maintained on the User document.
+    const counts = await Student.aggregate([
+        { $match: { collegeId: req.collegeId } },
+        { $group: { _id: '$wardenId', count: { $sum: 1 } } }
+    ]);
+    const countMap = new Map(counts.map(c => [String(c._id), c.count]));
+
+    const formattedWardens = wardens.map(w => {
+        const obj = w.toObject();
+        return {
+            ...obj,
+            id: w._id,
+            assignedStudents: countMap.get(String(w._id)) || 0
+        };
+    });
 
     res.status(200).json({
         success: true,
@@ -180,6 +193,14 @@ exports.addStudent = asyncHandler(async (req, res, next) => {
         parentEmail,
         wardenId: wardenId || undefined // Optional
     });
+
+    // Pre-provision the parent account so first-request notifications aren't lost
+    // (best-effort: never fail student creation if this hiccups).
+    try {
+        await ensureParentUser(student);
+    } catch (err) {
+        console.error('ensureParentUser failed for student', student._id, err.message);
+    }
 
     await logAudit(req, 'student.create', { studentId: student._id, rollNumber });
 
@@ -247,6 +268,11 @@ exports.bulkUploadStudents = asyncHandler(async (req, res, next) => {
                     parentPhone: row.parentPhone,
                     parentEmail: row.parentEmail
                 });
+                try {
+                    await ensureParentUser(student);
+                } catch (err) {
+                    console.error('ensureParentUser failed (bulk) for student', student._id, err.message);
+                }
                 successful.push(student);
             } catch (err) {
                 // Roll back the user account so the row can be re-imported after fixing
@@ -308,23 +334,14 @@ exports.assignStudentsToWarden = asyncHandler(async (req, res, next) => {
         return next(new ErrorResponse('Invalid warden', 400));
     }
 
-    // Update students
+    // Student.wardenId is the single source of truth for the assignment, so a
+    // simple reassignment is all that's needed — counts are derived on read.
     await Student.updateMany(
         { _id: { $in: studentIds }, collegeId: req.collegeId },
         { wardenId: wardenId }
     );
 
-    // Also update warden's assignedStudents list for query performance if needed
-    // But keeping it normalized in Student model is usually better. 
-    // The User model has 'assignedStudents' field in my plan, let's update it.
-
-    // First remove these student Ids from any other warden's list if previously assigned?
-    // Implementation choice: We can just use the Student.wardenId as the source of truth.
-    // Syncing User.assignedStudents manually:
-
-    await User.findByIdAndUpdate(wardenId, {
-        $addToSet: { assignedStudents: { $each: studentIds } }
-    });
+    await logAudit(req, 'student.assign', { wardenId, count: studentIds.length });
 
     res.status(200).json({
         success: true,
@@ -484,7 +501,7 @@ exports.getSettings = asyncHandler(async (req, res, next) => {
 // @route   PUT /api/college-admin/settings
 // @access  Private (College Admin)
 exports.updateSettings = asyncHandler(async (req, res, next) => {
-    const { enableGateSecurity } = req.body;
+    const { enableGateSecurity, requireWardenApproval } = req.body;
 
     const college = await require('../models/College').findById(req.collegeId);
 
@@ -495,10 +512,16 @@ exports.updateSettings = asyncHandler(async (req, res, next) => {
     if (enableGateSecurity !== undefined) {
         college.config.enableGateSecurity = enableGateSecurity;
     }
+    if (requireWardenApproval !== undefined) {
+        college.config.requireWardenApproval = requireWardenApproval;
+    }
 
     await college.save();
 
-    await logAudit(req, 'settings.update', { enableGateSecurity: college.config.enableGateSecurity });
+    await logAudit(req, 'settings.update', {
+        enableGateSecurity: college.config.enableGateSecurity,
+        requireWardenApproval: college.config.requireWardenApproval
+    });
 
     res.status(200).json({
         success: true,

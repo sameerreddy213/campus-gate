@@ -31,6 +31,12 @@ exports.protect = asyncHandler(async (req, res, next) => {
             return next(new ErrorResponse('User not found', 404));
         }
 
+        // Reject tokens issued before the user's last credential change.
+        if ((decoded.tv || 0) !== (req.user.tokenVersion || 0)) {
+            logSecurityEvent(req, 'unauthorized', { details: { reason: 'stale_token' } });
+            return next(new ErrorResponse('Session expired, please log in again', 401));
+        }
+
         next();
     } catch (err) {
         // Invalid/expired/tampered token — a common probing signal.

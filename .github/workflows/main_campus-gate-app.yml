@@ -7,13 +7,48 @@ on:
   push:
     branches:
       - main
+  pull_request:
   workflow_dispatch:
 
-# A single job avoids the slow upload/download of a ~120MB artifact (node_modules)
-# between separate build and deploy jobs.
 jobs:
+  # Quality gate: lint, typecheck, and tests must pass before anything deploys.
+  # Also runs on pull requests (where the deploy job below is skipped).
+  quality:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (client)
+        run: npm run lint --prefix client
+
+      - name: Typecheck (client)
+        working-directory: client
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Test (client)
+        run: npm test --prefix client
+
+      - name: Test (server)
+        run: npm test --prefix server
+
+  # A single job avoids the slow upload/download of a ~120MB artifact (node_modules)
+  # between separate build and deploy jobs.
   build-and-deploy:
     runs-on: ubuntu-latest
+    needs: quality
+    # Deploy only on push to main or a manual run — never on pull requests.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       id-token: write # Required for requesting the OIDC JWT for Azure login
       contents: read  # Required for actions/checkout

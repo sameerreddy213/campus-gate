@@ -37,13 +37,15 @@ const userSchema = new mongoose.Schema({
         ref: 'College',
         required: function () { return this.role !== 'dev-admin'; }
     },
-    // For wardens to know which students they manage (optional mainly for logic)
-    assignedStudents: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Student'
-    }],
     resetPasswordToken: String,
     resetPasswordExpire: Date,
+    // Bumped whenever credentials change (password reset/update). Embedded in the
+    // JWT as `tv`; protect middleware rejects tokens whose tv is stale, so a
+    // password change invalidates all previously-issued tokens.
+    tokenVersion: {
+        type: Number,
+        default: 0
+    },
     createdAt: {
         type: Date,
         default: Date.now
@@ -52,14 +54,15 @@ const userSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Encrypt password using bcrypt
-userSchema.pre('save', async function (next) {
+// Encrypt password using bcrypt.
+// NOTE: an `async` pre-hook must NOT take/call `next` in Mongoose 7+ (it runs in
+// promise mode and is passed no callback); doing so throws "next is not a function".
+userSchema.pre('save', async function () {
     if (!this.isModified('password')) {
-        return next();
+        return;
     }
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    next();
 });
 
 

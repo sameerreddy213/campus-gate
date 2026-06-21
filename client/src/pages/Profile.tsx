@@ -5,20 +5,49 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "@/hooks/use-toast";
+import api from "@/lib/api";
 import {
     User, Phone, Mail, Building2, GraduationCap, Shield,
-    MapPin, Calendar, Hash, Briefcase, School
+    MapPin, Calendar, Hash, Briefcase, School, Pencil
 } from "lucide-react";
 
 export default function Profile() {
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const [profile, setProfile] = useState<any>(null);
+    const [editOpen, setEditOpen] = useState(false);
+    const [editForm, setEditForm] = useState({ name: "", phone: "" });
+    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         if (user && (user as any).profile) {
             setProfile((user as any).profile);
         }
     }, [user]);
+
+    const openEdit = () => {
+        if (!user) return;
+        setEditForm({ name: user.name || "", phone: user.phone || "" });
+        setEditOpen(true);
+    };
+
+    const handleSaveProfile = async () => {
+        setSaving(true);
+        try {
+            await api.put("/auth/updatedetails", { name: editForm.name, phone: editForm.phone });
+            await refreshUser();
+            toast({ title: "Profile updated", description: "Your details have been saved." });
+            setEditOpen(false);
+        } catch (error: any) {
+            toast({ title: "Error", description: error.response?.data?.message || "Failed to update profile", variant: "destructive" });
+        } finally {
+            setSaving(false);
+        }
+    };
 
     if (!user) return null;
 
@@ -36,7 +65,11 @@ export default function Profile() {
 
     return (
         <div className="space-y-8 max-w-5xl mx-auto px-4 pb-10">
-            <PageHeader title="My Profile" description="Manage your personal information and settings" />
+            <PageHeader
+                title="My Profile"
+                description="View and update your personal information"
+                action={<Button variant="outline" size="sm" onClick={openEdit}><Pencil className="mr-2 h-4 w-4" /> Edit Profile</Button>}
+            />
 
             <div className="grid gap-8 lg:grid-cols-12 items-start">
                 {/* User Identity Card */}
@@ -148,12 +181,38 @@ export default function Profile() {
                                 <DetailItem icon={Building2} label="College Name" value={profile.college.name} className="sm:col-span-2" />
                                 <DetailItem icon={Hash} label="College Code" value={profile.college.code} />
                                 <DetailItem icon={MapPin} label="City" value={profile.college.city} />
+                                {profile.college.address && (
+                                    <DetailItem icon={MapPin} label="Address" value={profile.college.address} className="sm:col-span-2" />
+                                )}
                             </CardContent>
                         </Card>
                     )}
 
                 </div>
             </div>
+
+            <Dialog open={editOpen} onOpenChange={setEditOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit Profile</DialogTitle>
+                        <DialogDescription>Update your name and phone number.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-2">
+                        <div className="grid gap-2">
+                            <Label htmlFor="profile-name">Name</Label>
+                            <Input id="profile-name" value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="profile-phone">Phone</Label>
+                            <Input id="profile-phone" value={editForm.phone} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+                        <Button onClick={handleSaveProfile} disabled={saving || !editForm.name.trim()}>{saving ? "Saving..." : "Save"}</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

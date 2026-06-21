@@ -29,6 +29,7 @@ export interface College {
   name: string;
   code: string;
   city: string;
+  address?: string;
   status: "active" | "suspended";
   adminId: string;
   adminName: string;
@@ -84,6 +85,8 @@ export interface OutingRequest {
   outAt?: string;
   returnedAt?: string;
   createdAt: string;
+  /** Signed, expiring token the gate QR encodes; verified server-side on scan. */
+  gatePass?: string;
 }
 
 export interface AuditLog {

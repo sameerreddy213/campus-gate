@@ -4,7 +4,8 @@ const {
     getApprovedRequests,
     getOutRequests,
     markStudentOut,
-    markStudentReturned
+    markStudentReturned,
+    verifyPass
 } = require('../controllers/watchmanController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 const { tenant } = require('../middleware/tenantMiddleware');
@@ -18,6 +19,8 @@ router.use(tenant);
 router.get('/dashboard', getDashboardStats);
 router.get('/requests/approved', getApprovedRequests);
 router.get('/requests/out', getOutRequests);
+
+router.post('/verify', verifyPass);
 
 router.put('/requests/:id/out', markStudentOut);
 router.put('/requests/:id/returned', markStudentReturned);

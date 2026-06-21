@@ -7,6 +7,8 @@ const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
 const { logAudit } = require('../utils/audit');
 const { logSecurityEvent } = require('../utils/security');
+const { sendMail } = require('../utils/mailer');
+const { sendSms } = require('../utils/sms');
 
 // Helper to get full user profile with role-specific data
 const getUserProfile = async (user) => {
@@ -47,7 +49,7 @@ const getUserProfile = async (user) => {
 // Generate JWT Token
 const sendTokenResponse = async (user, statusCode, res) => {
     const token = jwt.sign(
-        { id: user._id, role: user.role, collegeId: user.collegeId },
+        { id: user._id, role: user.role, collegeId: user.collegeId, tv: user.tokenVersion || 0 },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRE || '30d' }
     );
@@ -113,6 +115,17 @@ exports.login = asyncHandler(async (req, res, next) => {
         return next(new ErrorResponse('Invalid credentials', 401));
     }
 
+    // Block users whose college has been suspended by a dev-admin. Dev-admins
+    // have no collegeId and are never blocked here.
+    if (user.collegeId) {
+        const College = require('../models/College');
+        const college = await College.findById(user.collegeId).select('status');
+        if (college && college.status === 'suspended') {
+            logSecurityEvent(req, 'forbidden', { identifier: email, details: { reason: 'college_suspended' } });
+            return next(new ErrorResponse('Your college account is suspended. Contact the administrator.', 403));
+        }
+    }
+
     await logAudit(req, 'auth.login', { userId: user._id, role: user.role });
     await sendTokenResponse(user, 200, res);
 });
@@ -142,10 +155,15 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
     const resetToken = user.getResetPasswordToken();
     await user.save({ validateBeforeSave: false });
 
-    // NOTE: No email/SMS provider is configured. In production you would email
-    // the link below to the user. In development we return/log it for testing.
+    // Email the reset link. With SMTP configured (see utils/mailer.js) a real
+    // email is sent; otherwise the mailer logs to the console for local testing.
     const resetUrl = `${req.headers.origin || ''}/reset-password/${resetToken}`;
-    console.log(`Password reset link for ${email}: ${resetUrl}`);
+    await sendMail({
+        to: user.email,
+        subject: 'CampusGate password reset',
+        text: `You requested a password reset.\n\nReset your password using this link (valid for 30 minutes):\n${resetUrl}\n\nIf you did not request this, you can safely ignore this email.`,
+        html: `<p>You requested a password reset.</p><p><a href="${resetUrl}">Reset your password</a> (valid for 30 minutes).</p><p>If you did not request this, you can safely ignore this email.</p>`
+    });
 
     await logAudit(req, 'auth.forgot_password', { userId: user._id });
 
@@ -186,6 +204,8 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
     user.password = password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
+    // Invalidate any tokens issued before this password change.
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
 
     await logAudit(req, 'auth.reset_password', { userId: user._id });
@@ -220,15 +240,14 @@ exports.sendOtp = asyncHandler(async (req, res, next) => {
         expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
     });
 
-    // In production, send SMS here
-    if (process.env.NODE_ENV !== 'production') {
-        console.log(`DEV MODE: OTP for ${phone} is ${otp}`);
-    }
+    // Deliver the OTP. With Twilio configured (see utils/sms.js) a real SMS is
+    // sent; otherwise the sms util logs it to the console for local testing.
+    await sendSms({ to: phone, body: `Your CampusGate login OTP is ${otp}. It expires in 5 minutes.` });
 
     res.status(200).json({
         success: true,
         message: 'OTP sent successfully',
-        // In dev mode, return OTP in response for testing
+        // In dev mode (no SMS provider), return the OTP so testing works locally.
         devOtp: process.env.NODE_ENV === 'development' ? otp : undefined
     });
 });
@@ -316,6 +335,8 @@ exports.updatePassword = asyncHandler(async (req, res, next) => {
     }
 
     user.password = newPassword;
+    // Invalidate previously-issued tokens; the fresh token below carries the new tv.
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
 
     await sendTokenResponse(user, 200, res);
