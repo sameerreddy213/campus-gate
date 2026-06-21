@@ -48,17 +48,22 @@ const getUserProfile = async (user) => {
 
 // Generate JWT Token
 const sendTokenResponse = async (user, statusCode, res) => {
+    // Default to a 7-day session (was 30d). Shorter-lived tokens bound the damage
+    // of a stolen token; immediate revocation is still available via tokenVersion.
+    // Tune with JWT_EXPIRE (jwt lib format, e.g. '12h', '7d').
+    const jwtExpire = process.env.JWT_EXPIRE || '7d';
+    const cookieDays = Number(process.env.JWT_COOKIE_DAYS) || 7;
     const token = jwt.sign(
         { id: user._id, role: user.role, collegeId: user.collegeId, tv: user.tokenVersion || 0 },
         process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRE || '30d' }
+        { expiresIn: jwtExpire }
     );
 
     const options = {
-        expires: new Date(
-            Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
-        ),
-        httpOnly: true
+        expires: new Date(Date.now() + cookieDays * 24 * 60 * 60 * 1000),
+        httpOnly: true,
+        // Mitigate CSRF on the cookie-borne token; the SPA uses the Bearer header.
+        sameSite: 'lax'
     };
 
     if (process.env.NODE_ENV === 'production') {
@@ -81,6 +86,7 @@ const sendTokenResponse = async (user, statusCode, res) => {
                 role: user.role,
                 collegeId: user.collegeId,
                 createdAt: user.createdAt,
+                mustChangePassword: !!user.mustChangePassword,
                 profile: profile
             }
         });
@@ -157,7 +163,16 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
 
     // Email the reset link. With SMTP configured (see utils/mailer.js) a real
     // email is sent; otherwise the mailer logs to the console for local testing.
-    const resetUrl = `${req.headers.origin || ''}/reset-password/${resetToken}`;
+    //
+    // SECURITY: the link base MUST come from a server-trusted value, never from a
+    // request header. `Origin`/`Host` are attacker-controlled, so deriving the URL
+    // from them lets an attacker trigger a real reset email pointing at their own
+    // domain (reset-token exfiltration). PUBLIC_APP_URL is the canonical SPA origin;
+    // in local dev it falls back to the Vite dev server.
+    const appBase = (process.env.PUBLIC_APP_URL
+        || (process.env.NODE_ENV !== 'production' ? 'http://localhost:8080' : ''))
+        .replace(/\/+$/, '');
+    const resetUrl = `${appBase}/reset-password/${resetToken}`;
     await sendMail({
         to: user.email,
         subject: 'CampusGate password reset',
@@ -230,8 +245,28 @@ exports.sendOtp = asyncHandler(async (req, res, next) => {
         return next(new ErrorResponse('Phone number not registered with any student', 404));
     }
 
+    // Per-phone abuse controls (the IP rate-limiter alone can't stop SMS-bombing or
+    // Twilio cost amplification when an attacker rotates source IPs):
+    //   - cooldown: at most one OTP per phone per 60s
+    //   - hourly cap: at most 5 OTPs per phone per rolling hour
+    const now = Date.now();
+    const recent = await OtpLog.find({ phone, createdAt: { $gte: new Date(now - 60 * 60 * 1000) } })
+        .sort({ createdAt: -1 });
+    if (recent[0] && (now - recent[0].createdAt.getTime()) < 60 * 1000) {
+        logSecurityEvent(req, 'otp_failed', { identifier: phone, details: { reason: 'cooldown' } });
+        return next(new ErrorResponse('Please wait a minute before requesting another OTP', 429));
+    }
+    if (recent.length >= 5) {
+        logSecurityEvent(req, 'rate_limited', { identifier: phone, details: { reason: 'otp_hourly_cap' } });
+        return next(new ErrorResponse('Too many OTP requests. Try again later.', 429));
+    }
+
     // Generate 6 digit OTP (cryptographically secure)
     const otp = crypto.randomInt(100000, 1000000).toString();
+
+    // Invalidate any prior unverified OTPs for this phone so only the newest code
+    // is ever acceptable (shrinks the brute-force surface — P-1).
+    await OtpLog.updateMany({ phone, verified: false }, { verified: true });
 
     // Save OTP to DB
     await OtpLog.create({
@@ -327,6 +362,10 @@ exports.getMe = asyncHandler(async (req, res, next) => {
 exports.updatePassword = asyncHandler(async (req, res, next) => {
     const { currentPassword, newPassword } = req.body;
 
+    if (!newPassword || newPassword.length < 6) {
+        return next(new ErrorResponse('New password must be at least 6 characters', 400));
+    }
+
     const user = await User.findById(req.user.id).select('+password');
 
     // Check current password
@@ -335,6 +374,8 @@ exports.updatePassword = asyncHandler(async (req, res, next) => {
     }
 
     user.password = newPassword;
+    // Clear the forced-rotation flag now that a user-chosen password is set.
+    user.mustChangePassword = false;
     // Invalidate previously-issued tokens; the fresh token below carries the new tv.
     user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();

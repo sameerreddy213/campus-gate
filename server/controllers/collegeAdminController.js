@@ -8,6 +8,8 @@ const asyncHandler = require('../utils/asyncHandler');
 const { ErrorResponse } = require('../middleware/errorMiddleware');
 const { logAudit } = require('../utils/audit');
 const { ensureParentUser } = require('../utils/parents');
+const { generateTempPassword } = require('../utils/password');
+const { sendMail } = require('../utils/mailer');
 
 // @desc    Get Dashboard Stats
 // @route   GET /api/college-admin/dashboard
@@ -112,15 +114,25 @@ exports.deleteStudent = asyncHandler(async (req, res, next) => {
 // @route   POST /api/college-admin/wardens
 // @access  Private (College Admin)
 exports.addWarden = asyncHandler(async (req, res, next) => {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone } = req.body;
 
+    // Staff are always provisioned with a system-generated temp password and must
+    // rotate it on first login — admins never set the initial password directly.
+    const tempPassword = generateTempPassword();
     const warden = await User.create({
         name,
         email,
         phone,
-        password,
+        password: tempPassword,
         role: 'warden',
-        collegeId: req.collegeId
+        collegeId: req.collegeId,
+        mustChangePassword: true
+    });
+
+    await sendMail({
+        to: email,
+        subject: 'Your CampusGate warden account',
+        text: `A warden account was created for you on CampusGate.\n\nEmail: ${email}\nTemporary password: ${tempPassword}\n\nYou will be asked to set a new password on first login.`
     });
 
     const wardenData = warden.toObject();
@@ -130,7 +142,8 @@ exports.addWarden = asyncHandler(async (req, res, next) => {
 
     res.status(201).json({
         success: true,
-        data: wardenData
+        data: wardenData,
+        tempPassword
     });
 });
 
@@ -167,18 +180,27 @@ exports.getWardens = asyncHandler(async (req, res, next) => {
 // @route   POST /api/college-admin/students
 // @access  Private (College Admin)
 exports.addStudent = asyncHandler(async (req, res, next) => {
-    const { name, email, phone, rollNumber, department, year, parentName, parentPhone, parentEmail, password, wardenId } = req.body;
+    const { name, email, phone, rollNumber, department, year, parentName, parentPhone, parentEmail, wardenId } = req.body;
 
-    // Create User account for student first
-    // Use rollNumber as default password if not provided? Prompt says create student. 
-    // Student also needs User account to login.
+    // Provision with a high-entropy temporary password (NOT the roll number, which
+    // is predictable/public). The account is flagged so it must be rotated on first
+    // login; the temp password is emailed to the student and returned once to the
+    // admin who created it (so it can be relayed if email delivery is unavailable).
+    const tempPassword = generateTempPassword();
     const user = await User.create({
         name,
         email,
         phone,
-        password: password || rollNumber, // Default password is roll number
+        password: tempPassword,
         role: 'student',
-        collegeId: req.collegeId
+        collegeId: req.collegeId,
+        mustChangePassword: true
+    });
+
+    await sendMail({
+        to: email,
+        subject: 'Your CampusGate account',
+        text: `An account was created for you on CampusGate.\n\nEmail: ${email}\nTemporary password: ${tempPassword}\n\nYou will be asked to set a new password on first login.`
     });
 
     // Create Student profile
@@ -206,7 +228,9 @@ exports.addStudent = asyncHandler(async (req, res, next) => {
 
     res.status(201).json({
         success: true,
-        data: student
+        data: student,
+        // Shown once to the admin so they can relay it; never stored client-side.
+        tempPassword
     });
 });
 
@@ -248,13 +272,16 @@ exports.bulkUploadStudents = asyncHandler(async (req, res, next) => {
                 continue;
             }
 
+            // High-entropy temp password (not the roll number) + forced rotation.
+            const tempPassword = generateTempPassword();
             const user = await User.create({
                 name: row.name,
                 email: row.email,
                 phone: row.phone,
-                password: row.rollNumber, // Default password
+                password: tempPassword,
                 role: 'student',
-                collegeId: req.collegeId
+                collegeId: req.collegeId,
+                mustChangePassword: true
             });
 
             try {
@@ -273,6 +300,12 @@ exports.bulkUploadStudents = asyncHandler(async (req, res, next) => {
                 } catch (err) {
                     console.error('ensureParentUser failed (bulk) for student', student._id, err.message);
                 }
+                // Email each student their temp password (best-effort; never blocks import).
+                sendMail({
+                    to: row.email,
+                    subject: 'Your CampusGate account',
+                    text: `An account was created for you on CampusGate.\n\nEmail: ${row.email}\nTemporary password: ${tempPassword}\n\nYou will be asked to set a new password on first login.`
+                }).catch(() => {});
                 successful.push(student);
             } catch (err) {
                 // Roll back the user account so the row can be re-imported after fixing
@@ -427,15 +460,23 @@ exports.getReports = asyncHandler(async (req, res, next) => {
 // @route   POST /api/college-admin/watchmen
 // @access  Private (College Admin)
 exports.addWatchman = asyncHandler(async (req, res, next) => {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone } = req.body;
 
+    const tempPassword = generateTempPassword();
     const watchman = await User.create({
         name,
         email,
         phone,
-        password,
+        password: tempPassword,
         role: 'watchman',
-        collegeId: req.collegeId
+        collegeId: req.collegeId,
+        mustChangePassword: true
+    });
+
+    await sendMail({
+        to: email,
+        subject: 'Your CampusGate watchman account',
+        text: `A watchman account was created for you on CampusGate.\n\nEmail: ${email}\nTemporary password: ${tempPassword}\n\nYou will be asked to set a new password on first login.`
     });
 
     const watchmanData = watchman.toObject();
@@ -445,7 +486,8 @@ exports.addWatchman = asyncHandler(async (req, res, next) => {
 
     res.status(201).json({
         success: true,
-        data: watchmanData
+        data: watchmanData,
+        tempPassword
     });
 });
 

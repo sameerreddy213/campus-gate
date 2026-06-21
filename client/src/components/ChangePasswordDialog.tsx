@@ -5,14 +5,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import apiClient from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ChangePasswordDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     trigger?: React.ReactNode;
+    // When true the dialog cannot be dismissed (forced first-login rotation) and
+    // the user is refreshed on success so the mustChangePassword gate clears.
+    forced?: boolean;
 }
 
-export function ChangePasswordDialog({ open, onOpenChange, trigger }: ChangePasswordDialogProps) {
+export function ChangePasswordDialog({ open, onOpenChange, trigger, forced }: ChangePasswordDialogProps) {
+    const { refreshUser } = useAuth();
     const [currentPassword, setCurrentPassword] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -34,10 +39,14 @@ export function ChangePasswordDialog({ open, onOpenChange, trigger }: ChangePass
         try {
             await apiClient.put('/auth/updatepassword', { currentPassword, newPassword });
             toast({ title: "Success", description: "Password updated successfully" });
-            onOpenChange(false);
             setCurrentPassword("");
             setNewPassword("");
             setConfirmPassword("");
+            if (forced) {
+                // Clear the mustChangePassword gate by re-fetching the user.
+                await refreshUser();
+            }
+            onOpenChange(false);
         } catch (error: any) {
             toast({ title: "Error", description: error.response?.data?.message || "Failed to update password", variant: "destructive" });
         } finally {
@@ -46,12 +55,23 @@ export function ChangePasswordDialog({ open, onOpenChange, trigger }: ChangePass
     };
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={forced ? undefined : onOpenChange}>
             {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent
+                className="sm:max-w-[425px]"
+                // In forced mode, block the close button / outside-click / Esc.
+                hideClose={forced}
+                onPointerDownOutside={forced ? (e) => e.preventDefault() : undefined}
+                onEscapeKeyDown={forced ? (e) => e.preventDefault() : undefined}
+                onInteractOutside={forced ? (e) => e.preventDefault() : undefined}
+            >
                 <DialogHeader>
-                    <DialogTitle>Change Password</DialogTitle>
-                    <DialogDescription>Enter your current password and a new password to update it.</DialogDescription>
+                    <DialogTitle>{forced ? "Set a new password" : "Change Password"}</DialogTitle>
+                    <DialogDescription>
+                        {forced
+                            ? "Your account uses a temporary password. Choose a new password to continue."
+                            : "Enter your current password and a new password to update it."}
+                    </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 pt-4">
                     <div className="space-y-2">

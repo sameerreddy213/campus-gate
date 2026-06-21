@@ -46,6 +46,14 @@ const userSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    // True for accounts provisioned with a system-generated temporary password
+    // (students via add/bulk-upload, staff created by an admin). While set, the
+    // `protect` middleware blocks every route except viewing one's own profile
+    // and changing the password — forcing a credential rotation on first login.
+    mustChangePassword: {
+        type: Boolean,
+        default: false
+    },
     createdAt: {
         type: Date,
         default: Date.now

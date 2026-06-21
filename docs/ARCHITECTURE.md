@@ -53,7 +53,7 @@ with a platform-level *developer admin* on top.
 | Backend | **Node.js + Express** | Minimal, ubiquitous, easy to reason about; matches the serverless target. |
 | ODM/DB | **Mongoose + MongoDB** | Flexible document model fits the evolving request schema; schema validation + indexes + TTL. |
 | Auth | **JWT (Bearer) + bcrypt** | Stateless API auth; bcrypt for password hashing. |
-| Security mw | helmet, CORS allowlist, express-rate-limit, express-mongo-sanitize, xss-clean, hpp | Layered hardening (details in §11). |
+| Security mw | helmet, CORS allowlist, express-rate-limit, express-mongo-sanitize, in-repo input sanitizer, hpp | Layered hardening (details in §11). |
 | Messaging | **nodemailer** (SMTP), **Twilio REST** (SMS) | Standard email transport; SMS via REST so no heavy SDK. Both pluggable. |
 | Jobs | **node-cron** | In-process scheduled maintenance. |
 | Tests | **Vitest + Testing Library** (client), **node:test** (server) | Fast Vite-native tests; zero-dependency server tests. |
@@ -90,22 +90,29 @@ Browser ──HTTP──> Express (server/app.js)
 
 Order matters. Every API request flows through `server/app.js` in this sequence:
 
-1. **helmet()** — secure HTTP headers.
-2. **CORS** — allowlist function (same-origin always allowed; configured origins
+1. **static assets** — `express.static(client/dist)` is mounted **first**, with
+   1-year immutable cache headers. Serving hashed asset files before CORS/rate-limit
+   avoids a subtle bug: Vite marks `<script>/<link>` tags `crossorigin`, so the
+   browser sends an `Origin` header even for same-origin asset requests; routing
+   those through the CORS allowlist would 500 the CSS/JS.
+2. **helmet()** — secure HTTP headers.
+3. **CORS** — allowlist function (same-origin always allowed; configured origins
    in production; permissive in dev).
-3. **body parsers** — `express.json` / `urlencoded`, both capped at `1mb`.
-4. **express-mongo-sanitize** — strips `$`/`.` operator keys from input (NoSQL
+4. **body parsers** — `express.json` / `urlencoded`, both capped at `1mb`.
+5. **express-mongo-sanitize** — strips `$`/`.` operator keys from input (NoSQL
    injection). Its `onSanitize` hook logs a `injection_blocked` security event.
-5. **xss-clean** — strips HTML/script from inputs.
-6. **hpp** — guards against HTTP parameter pollution.
-7. **morgan** — request logging (dev only).
-8. **rate limiters** — a global limiter (300/min/IP) and a stricter auth limiter
+6. **input sanitizer** (`middleware/sanitize.js`) — recursively HTML-escapes string
+   values in request bodies/params (XSS defense-in-depth; replaces the abandoned
+   `xss-clean` package).
+7. **hpp** — guards against HTTP parameter pollution.
+8. **morgan** — request logging (dev only).
+9. **rate limiters** — a global limiter (300/min/IP) and a stricter auth limiter
    (30/15min/IP on `/auth`). Both use a shared handler that logs a `rate_limited`
    security event and returns 429.
-9. **routers** — mounted under both `/api/*` and unprefixed paths (the latter so a
-   Vercel rewrite that strips `/api` still resolves).
-10. **SPA static + fallback** — only if `client/dist` exists.
-11. **404 handler** → **central error handler** — normalizes Mongoose errors and,
+10. **routers** — mounted under both `/api/*` and unprefixed paths (the latter so a
+    Vercel rewrite that strips `/api` still resolves).
+11. **SPA fallback** — `index.html` for unknown non-API routes (only if `client/dist` exists).
+12. **404 handler** → **central error handler** — normalizes Mongoose errors and,
     in production, never leaks 5xx internals to the client.
 
 Per-route, protected endpoints then run: **`protect`** (JWT) → **`authorize(...roles)`**
@@ -116,8 +123,8 @@ Per-route, protected endpoints then run: **`protect`** (JWT) → **`authorize(..
 ## 5. Authentication & authorization
 
 **Tokens.** On login the server signs a JWT containing `{ id, role, collegeId, tv }`
-(`tv` = token version) with `JWT_SECRET`, default 30-day expiry. The client stores
-it in `localStorage` and sends it as `Authorization: Bearer <token>`.
+(`tv` = token version) with `JWT_SECRET`, default 7-day expiry (`JWT_EXPIRE`). The
+client stores it in `localStorage` and sends it as `Authorization: Bearer <token>`.
 
 **`protect` middleware** (`middleware/authMiddleware.js`):
 - extracts the Bearer token; missing/!valid → 401 + `unauthorized` security event;
@@ -127,8 +134,19 @@ it in `localStorage` and sends it as `Authorization: Bearer <token>`.
   invalidates every previously issued token** — stateless revocation without a
   server-side session store.
 
+- **forced password change:** if `user.mustChangePassword` is set (accounts
+  provisioned with a temporary password), `protect` blocks every route except
+  `GET /auth/me` and `PUT /auth/updatepassword` with a 403 until the password is
+  rotated. The frontend mirrors this with a non-dismissible change-password dialog.
+
 **`authorize(...roles)`** — checks `req.user.role`; mismatch → 403 + `forbidden`
 security event.
+
+**Account provisioning.** Students (add/bulk) and staff (warden/watchman) are
+created with a high-entropy random temporary password (`utils/password.js`), never
+a predictable value like the roll number. The temp password is emailed to the user
+(and returned once to the creating admin so it can be relayed if email is
+unavailable), and `mustChangePassword` forces rotation on first login.
 
 **`tenant`** (`middleware/tenantMiddleware.js`) — for non-dev-admin roles: requires
 a `collegeId`, **rejects requests from a suspended college (403)**, and sets
@@ -167,7 +185,7 @@ source of truth.
 MongoDB collections (Mongoose schemas in `server/models/`):
 
 **User** — every human except the implicit "system".
-`name, email (unique), phone, password (bcrypt, select:false), role (enum: dev-admin|college-admin|warden|student|parent|watchman), collegeId (required unless dev-admin), resetPasswordToken/Expire, tokenVersion`. Hooks: bcrypt hash on save; `matchPassword`, `getResetPasswordToken`.
+`name, email (unique), phone, password (bcrypt, select:false), role (enum: dev-admin|college-admin|warden|student|parent|watchman), collegeId (required unless dev-admin), resetPasswordToken/Expire, tokenVersion, mustChangePassword`. Hooks: bcrypt hash on save; `matchPassword`, `getResetPasswordToken`.
 
 **College** — a tenant.
 `name (unique), code (unique, uppercase), city, address?, status (active|suspended), config.enableGateSecurity`.
@@ -246,18 +264,23 @@ auto-forwarded). Parent `PUT /parent/requests/:id` approve → status →
 approve → `approved`, notify student. Gate marks out then returned (§10).
 
 **Parent OTP login.** `POST /auth/parent/send-otp` → verifies the phone belongs to
-a student, generates a **crypto-random 6-digit OTP**, stores it in `OtpLog` (5-min
-expiry), and sends it via SMS (or logs in dev). `POST /auth/parent/verify-otp` →
-finds the latest unverified, unexpired OTP, marks it used (single-use, no replay),
-and finds/creates the parent `User`, then issues a JWT. Parents are also
-**pre-provisioned** when a student is created, so the very first request's
-notification is never dropped.
+a student, enforces **per-phone abuse limits** (1 OTP/min cooldown, 5/hour cap — so
+IP rotation can't drive SMS-bombing or Twilio cost amplification), **invalidates any
+prior unverified OTPs** (only the newest code is ever valid), generates a
+**crypto-random 6-digit OTP**, stores it in `OtpLog` (5-min expiry), and sends it via
+SMS (or logs in dev). `POST /auth/parent/verify-otp` → finds the latest unverified,
+unexpired OTP, marks it used (single-use, no replay), and finds/creates the parent
+`User`, then issues a JWT. Parents are also **pre-provisioned** when a student is
+created, so the very first request's notification is never dropped.
 
 **Password reset.** `POST /auth/forgotpassword` → always returns a generic message
 (no account enumeration); if the user exists, it stores a **hashed** reset token
 (30-min expiry) and emails the link (the raw token is only ever sent out-of-band).
-`PUT /auth/resetpassword/:token` → hashes the incoming token, matches an unexpired
-record, sets the new password, and **bumps `tokenVersion`** (invalidating old JWTs).
+The link base comes from the server-trusted `PUBLIC_APP_URL`, **never** from the
+request's `Origin`/`Host` headers — an attacker can't point a real reset email at
+their own domain to exfiltrate the token. `PUT /auth/resetpassword/:token` → hashes
+the incoming token, matches an unexpired record, sets the new password, and **bumps
+`tokenVersion`** (invalidating old JWTs).
 
 **Gate-security modes.** A college toggles `config.enableGateSecurity`:
 - **ON** (default): the **watchman** marks students out/returned; the warden is
@@ -297,16 +320,21 @@ all verified server-side, not in the browser.
 | Transport/headers | **helmet** secure headers |
 | Cross-origin abuse | **CORS allowlist** (env-configurable; same-origin always allowed; permissive only in dev) |
 | Brute force / floods | **rate limiting** — global 300/min/IP, auth 30/15min/IP |
+| SMS-bombing / OTP cost abuse | **per-phone OTP cooldown (1/min) + hourly cap (5/hr)**; only the newest OTP is valid |
 | NoSQL injection | **express-mongo-sanitize** (operator stripping) + logs the attempt |
-| XSS | **xss-clean** input sanitization + React's escaping on output |
+| XSS | **in-repo input sanitizer** (HTML-escapes string inputs) + React's escaping on output |
+| CSV/spreadsheet formula injection | export escaper neutralizes `= + - @`-prefixed cells |
 | Param pollution | **hpp** |
 | Password storage | **bcrypt** (salted) |
-| Token theft after pw change | **`tokenVersion`** invalidation (stateless revocation) |
+| Weak/default credentials | **random temp passwords** for provisioned accounts + forced first-login rotation (`mustChangePassword`) |
+| Token theft after pw change | **`tokenVersion`** invalidation (stateless revocation); 7-day token lifetime |
+| Reset-link poisoning | reset URL built from server-trusted **`PUBLIC_APP_URL`**, never request headers |
 | Pass forgery/replay | **HMAC-signed, expiring gate pass** verified server-side (§10) |
 | Suspended tenants | **login + per-request lockout** for suspended colleges |
 | Account enumeration | generic responses on login + forgot-password |
 | Error leakage | central handler hides 5xx internals in production |
 | Misconfiguration | **fail-fast** if `JWT_SECRET` is missing |
+| DB outage | **fail-fast** on boot (platform restarts); `/system/health` reports real DB state |
 | Visibility / forensics | **SecurityEvent** logging + dev-admin **Security & Logs** dashboard |
 
 **Security telemetry.** `server/utils/security.js` records hostile events

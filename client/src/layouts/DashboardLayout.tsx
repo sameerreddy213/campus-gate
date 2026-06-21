@@ -392,6 +392,10 @@ export function DashboardLayout() {
         </main>
       </div >
       <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
+      {/* Forced first-login rotation: cannot be dismissed until the temp password
+          is replaced. The backend independently blocks all other routes (403) until
+          mustChangePassword clears, so this is the UX side of that control. */}
+      <ChangePasswordDialog forced open={!!user?.mustChangePassword} onOpenChange={() => { }} />
     </div >
   );
 }

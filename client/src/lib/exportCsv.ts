@@ -12,7 +12,13 @@ export function exportToCsv<T>(
 ): void {
   const escape = (val: unknown): string => {
     if (val === null || val === undefined) return "";
-    const str = String(val);
+    let str = String(val);
+    // Neutralize spreadsheet formula injection: a cell starting with = + - @ (or a
+    // leading tab/CR) is treated as a formula by Excel/Sheets. Prefix with a single
+    // quote so it's rendered as literal text. (CWE-1236)
+    if (/^[=+\-@\t\r]/.test(str)) {
+      str = `'${str}`;
+    }
     // Quote if the value contains comma, quote, or newline; double up quotes.
     if (/[",\n\r]/.test(str)) {
       return `"${str.replace(/"/g, '""')}"`;

@@ -61,7 +61,7 @@
 - **Backend:** Node.js, Express, Mongoose.
 - **Database:** MongoDB.
 - **Auth:** JWT (Bearer), bcrypt.
-- **Security:** helmet, CORS allowlist, express-rate-limit, express-mongo-sanitize, xss-clean, hpp.
+- **Security:** helmet, CORS allowlist, express-rate-limit, express-mongo-sanitize, an in-repo input sanitizer, hpp.
 - **Messaging:** nodemailer (SMTP) for email, Twilio REST for SMS (both pluggable, with a console fallback in dev).
 - **Jobs:** node-cron.
 - **Tests:** Vitest + Testing Library (client), Node's built-in test runner (server).
@@ -117,8 +117,11 @@ Create `server/.env` (see the full reference below):
 PORT=5000
 MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=a_long_random_secret
-JWT_EXPIRE=30d
+JWT_EXPIRE=7d
 NODE_ENV=development
+# Canonical SPA origin — used to build password-reset links (never derived from
+# request headers, which an attacker could spoof). In dev defaults to the Vite URL.
+PUBLIC_APP_URL=http://localhost:8080
 ```
 
 (Optional) create `client/.env` to override the API base — by default the client calls `/api` and Vite proxies it to `http://localhost:5000` in development.
@@ -167,7 +170,7 @@ CI/CD is handled by **[.github/workflows/main_campus-gate-app.yml](.github/workf
 1. Installs deps (with npm cache), builds the client, prunes dev dependencies.
 2. Authenticates to Azure via OIDC and deploys to the App Service as a single job (no slow artifact round-trip).
 
-**Required App Service settings** (Configuration → Environment variables): at minimum `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRE`, and `NODE_ENV=production` (enables secure cookies and hides server error details). The Express server serves `client/dist` whenever that build is present, so the SPA and API ship from the same origin.
+**Required App Service settings** (Configuration → Environment variables): at minimum `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRE`, `NODE_ENV=production` (enables secure cookies and hides server error details), and `PUBLIC_APP_URL` (the public site origin, used to build password-reset links). The Express server serves `client/dist` whenever that build is present, so the SPA and API ship from the same origin.
 
 Azure's server-side build is disabled via the committed [.deployment](.deployment) file (`SCM_DO_BUILD_DURING_DEPLOYMENT=false`), so the pre-built, pruned CI package ships as-is.
 
@@ -178,7 +181,9 @@ Azure's server-side build is disabled via the committed [.deployment](.deploymen
 | --- | --- | --- |
 | `MONGO_URI` | server | MongoDB connection string |
 | `JWT_SECRET` | server | JWT signing secret (**required**; the server refuses to start without it) |
-| `JWT_EXPIRE` | server | Token lifetime (e.g. `30d`) |
+| `JWT_EXPIRE` | server | Token lifetime (default `7d`; jwt format, e.g. `12h`, `7d`) |
+| `JWT_COOKIE_DAYS` | server | Optional. Cookie expiry in days (default `7`); keep aligned with `JWT_EXPIRE`. |
+| `PUBLIC_APP_URL` | server | Canonical SPA origin used to build password-reset links. Built from this server-trusted value, **never** from request headers. |
 | `NODE_ENV` | server | `production` in deployment |
 | `PORT` | server | API port (default 5000) |
 | `CORS_ORIGINS` | server | Optional. Comma-separated allowlist of cross-origin sites allowed to call the API in production. Same-origin is always allowed; non-production allows all. |
@@ -191,11 +196,25 @@ Azure's server-side build is disabled via the committed [.deployment](.deploymen
 
 ---
 
+## 🔐 Security Model
+
+Controls implemented (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §Security for detail):
+
+- **Authentication:** JWT Bearer tokens carrying a `tokenVersion`; any password change bumps it and instantly invalidates all previously-issued tokens. Default lifetime 7 days. Login returns a generic "Invalid credentials" to avoid account enumeration.
+- **Provisioning:** no predictable default passwords — provisioned accounts get a random temporary password and are forced to rotate it on first login (`mustChangePassword`, enforced server-side).
+- **Authorization:** role middleware (`authorize`) plus per-resource ownership checks on every state-changing endpoint, plus multi-tenant `collegeId` scoping (`tenantMiddleware`) that also locks out suspended colleges.
+- **Gate passes:** HMAC-SHA256 signed, self-expiring (12h) tokens verified server-side with a constant-time comparison — a student cannot forge or replay a pass.
+- **Password reset:** reset links are built from the server-trusted `PUBLIC_APP_URL`, never from request headers, preventing reset-link poisoning / token exfiltration.
+- **OTP login:** cryptographically-secure 6-digit codes; per-phone cooldown (1/min) and hourly cap (5/hr) to stop SMS-bombing and Twilio cost amplification; only the newest code is ever valid.
+- **Abuse / injection:** helmet headers, CORS allowlist, global + auth-specific rate limiting, `express-mongo-sanitize` (NoSQL injection), an in-repo HTML-escaping input sanitizer (XSS defense-in-depth), `hpp` (parameter pollution), and CSV-export formula-injection neutralization.
+- **Observability:** security events (failed logins, unauthorized/forbidden, rate-limit blocks, OTP failures, blocked injections) are recorded with a 90-day TTL and surfaced in the dev-admin Security dashboard.
+- **Resilience:** the server exits (so the platform restarts it) if it can't reach MongoDB at boot or if `JWT_SECRET` is missing; `/system/health` reports real DB connectivity.
+
 ## 📌 Notes & Limitations
 
 - **Messaging providers are optional but real.** Email (SMTP/nodemailer) and SMS (Twilio REST) are integrated behind a small provider layer (`server/utils/mailer.js`, `server/utils/sms.js`). Without credentials they fall back to console logging so local flows work; set the env vars above to deliver for real.
 - **Notifications are in-app + polled** (30s) — there is no websocket/push channel yet. Out-of-app delivery relies on the email/SMS providers above.
-- **Default credentials must be changed.** Use `scripts/setDevAdmin.js` to set your own dev-admin.
+- **No predictable default passwords.** Provisioned accounts (students via add/bulk-upload, wardens, watchmen) receive a high-entropy random temporary password that is emailed to them (and returned once to the creating admin to relay). The account is flagged `mustChangePassword`, and the backend blocks every route except "view profile" and "change password" until it is rotated. Use `scripts/setDevAdmin.js` to set your own dev-admin.
 - `server/scripts/clearData.js` is **destructive** (wipes all data) and is guarded: it refuses to run in production and requires `--confirm`.
 
 ---

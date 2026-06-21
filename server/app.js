@@ -71,7 +71,7 @@ app.use(require('express-mongo-sanitize')({
         }
     }
 }));
-app.use(require('xss-clean')()); // Prevent XSS attacks
+app.use(require('./middleware/sanitize')()); // Escape HTML metachars in inputs (XSS defense-in-depth)
 app.use(require('hpp')()); // Prevent HTTP Parameter Pollution
 if (process.env.NODE_ENV !== 'production') {
     app.use(morgan('dev'));

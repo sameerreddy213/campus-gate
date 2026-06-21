@@ -22,6 +22,9 @@ export interface User {
   phone?: string;
   avatar?: string;
   createdAt?: string;
+  // Set for accounts provisioned with a temporary password; gates the app behind
+  // a forced password change until cleared.
+  mustChangePassword?: boolean;
 }
 
 export interface College {

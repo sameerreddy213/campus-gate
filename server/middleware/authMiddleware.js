@@ -4,6 +4,16 @@ const { ErrorResponse } = require('./errorMiddleware');
 const User = require('../models/User');
 const { logSecurityEvent } = require('../utils/security');
 
+// The only actions allowed while an account is pending a forced password change:
+// view your own profile and change the password. Matched against originalUrl so
+// it covers both the /api-prefixed and unprefixed route mounts.
+const isPasswordChangeFlow = (req) => {
+    const url = req.originalUrl || '';
+    if (req.method === 'PUT' && /\/auth\/updatepassword$/.test(url)) return true;
+    if (req.method === 'GET' && /\/auth\/me$/.test(url)) return true;
+    return false;
+};
+
 // Protect routes
 exports.protect = asyncHandler(async (req, res, next) => {
     let token;
@@ -35,6 +45,12 @@ exports.protect = asyncHandler(async (req, res, next) => {
         if ((decoded.tv || 0) !== (req.user.tokenVersion || 0)) {
             logSecurityEvent(req, 'unauthorized', { details: { reason: 'stale_token' } });
             return next(new ErrorResponse('Session expired, please log in again', 401));
+        }
+
+        // Accounts on a system-generated temporary password must rotate it before
+        // doing anything else. Allow only: view own profile + change password.
+        if (req.user.mustChangePassword && !isPasswordChangeFlow(req)) {
+            return next(new ErrorResponse('Password change required before continuing', 403));
         }
 
         next();
