@@ -14,10 +14,25 @@ dotenv.config();
 // Connect to database
 // connectDB(); // Called in server.js
 
+const path = require('path');
+const fs = require('fs');
+
 const app = express();
 
-// Running behind a reverse proxy (Vercel) — needed for correct req.ip / rate limiting
+// Running behind a reverse proxy (Azure/Vercel) — needed for correct req.ip / rate limiting
 app.set('trust proxy', 1);
+
+// Serve the built frontend assets FIRST — before CORS and rate-limiting — because:
+//   (a) static assets (hashed filenames) are immutable public files that need no auth or CORS, and
+//   (b) Vite adds `crossorigin` to <script>/<link> tags, causing the browser to send an Origin
+//       header even for same-origin asset requests, which the CORS allowlist below would reject.
+const clientDist = path.join(__dirname, '../client/dist');
+if (fs.existsSync(path.join(clientDist, 'index.html'))) {
+    app.use(express.static(clientDist, {
+        maxAge: '1y',    // hashed filenames are safe to cache aggressively
+        immutable: true, // tells CDNs/browsers the file will never change at this URL
+    }));
+}
 
 // Security Middleware
 app.use(helmet());
@@ -137,20 +152,11 @@ app.get('/api', (req, res) => {
     res.json({ message: 'CampusGate API is running at /api' });
 });
 
-// Serve the built frontend whenever it exists (no dependency on NODE_ENV, so a
-// missing env var can never silently blank the site). In local dev the client
-// runs separately on Vite, so client/dist is absent and this is skipped.
-const path = require('path');
-const fs = require('fs');
-const clientDist = path.join(__dirname, '../client/dist');
+// SPA fallback: for any non-API GET that express.static didn't satisfy (deep links,
+// client-side routes), serve index.html so the React router can handle it.
 if (fs.existsSync(path.join(clientDist, 'index.html'))) {
-    app.use(express.static(clientDist));
-
-    // SPA fallback: serve index.html for any unknown non-API route
     app.get('*', (req, res, next) => {
-        if (req.url.startsWith('/api')) {
-            return next();
-        }
+        if (req.url.startsWith('/api')) return next();
         res.sendFile(path.join(clientDist, 'index.html'));
     });
 }
